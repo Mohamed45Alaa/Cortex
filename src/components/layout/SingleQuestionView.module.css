@@ -1,0 +1,244 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    padding: 2rem;
+    background-color: var(--background);
+    color: var(--foreground);
+}
+
+.question {
+    font-size: 2.5rem;
+    font-weight: 500;
+    text-align: center;
+    margin-bottom: 3rem;
+    line-height: 1.2;
+    font-family: var(--font-sans);
+    max-width: 800px;
+}
+
+.inputArea {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    justify-content: center;
+}
+
+.textInput {
+    width: 100%;
+    font-size: 1.5rem;
+    padding: 1rem 0;
+    border: none;
+    border-bottom: 2px solid var(--border);
+    background: transparent;
+    color: var(--foreground);
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.textInput:focus {
+    border-color: var(--primary);
+}
+
+.dateInput {
+    font-size: 1.5rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--foreground);
+    outline: none;
+    border-radius: 8px;
+    font-family: inherit;
+}
+
+.sliderContainer {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.sliderValueDisplay {
+    font-size: 2rem;
+    font-weight: 600;
+    text-align: center;
+    color: var(--primary);
+    margin-bottom: 0.5rem;
+}
+
+.slider {
+    width: 100%;
+    cursor: pointer;
+    accent-color: var(--primary);
+    /* Use primary color */
+    height: 6px;
+    background: var(--border);
+    border-radius: 999px;
+    appearance: none;
+    /* Custom look */
+}
+
+/* Custom Slider Track for Webkit */
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: var(--foreground);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+
+.sliderScale {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 4px;
+    /* Align roughly with thumb center */
+    margin-top: 0.5rem;
+}
+
+.scaleNumber {
+    font-size: 1rem;
+    color: var(--muted);
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.scaleNumber:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--foreground);
+}
+
+.scaleNumberActive {
+    font-size: 1rem;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    background: var(--primary);
+    color: white;
+    /* Ensure visibility */
+    font-weight: bold;
+}
+
+.sliderLabels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.binaryOptions {
+    display: flex;
+    gap: 2rem;
+}
+
+.binaryBtn {
+    font-size: 1.25rem;
+    padding: 1rem 3rem;
+    border: 1px solid var(--border);
+    background: transparent;
+    border-radius: 999px;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.binaryBtn:hover {
+    background: var(--foreground);
+    color: var(--surface);
+    border-color: var(--foreground);
+}
+
+.gridContainer {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    width: 100%;
+}
+
+.gridBtn {
+    padding: 1rem;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--foreground);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 1rem;
+}
+
+.gridBtn:hover,
+.gridBtnActive {
+    background: var(--foreground);
+    color: var(--surface);
+    border-color: var(--foreground);
+}
+
+.hint {
+    margin-top: 4rem;
+    font-size: 0.875rem;
+    color: var(--muted);
+    opacity: 0.6;
+}
+
+.key {
+    border: 1px solid var(--border);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+.enterBtn {
+    margin-top: 4rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    padding: 12px 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+    /* Keycap depth */
+}
+
+.enterBtn:hover {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
+    border-color: var(--primary);
+    color: var(--foreground);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.enterBtn:active {
+    transform: translateY(4px);
+    box-shadow: none;
+}

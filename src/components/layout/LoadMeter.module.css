@@ -1,0 +1,46 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.track {
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.bar {
+    height: 100%;
+    transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.safe {
+    background-color: var(--safe);
+}
+
+.warning {
+    background-color: var(--warning);
+}
+
+.risk {
+    background-color: var(--risk);
+}
+
+.statusText {
+    font-size: 0.75rem;
+    color: var(--foreground);
+}

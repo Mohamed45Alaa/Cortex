@@ -1,0 +1,82 @@
+.main {
+    min-height: 100vh;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1rem;
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+}
+
+.statusIndicator {
+    background: var(--surface);
+    color: var(--safe);
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 4rem;
+}
+
+.loadSection {
+    grid-column: span 1;
+}
+
+.actions {
+    display: flex;
+    gap: 1rem;
+    border-top: 1px solid var(--border);
+    padding-top: 2rem;
+}
+
+.primaryButton {
+    background: var(--foreground);
+    color: var(--surface);
+    padding: 0.75rem 2rem;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: opacity 0.2s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.primaryButton:hover {
+    opacity: 0.9;
+}
+
+.secondaryButton {
+    background: var(--surface);
+    color: var(--foreground);
+    border: 1px solid var(--border);
+    padding: 0.75rem 2rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: background 0.2s;
+}
+
+.secondaryButton:hover {
+    background: var(--background);
+}
