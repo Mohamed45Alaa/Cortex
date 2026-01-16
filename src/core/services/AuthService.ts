@@ -11,6 +11,7 @@ const mapUser = (fbUser: FirebaseUser): UserProfile => ({
     name: fbUser.displayName || 'Student',
     role: 'STUDENT', // Default to Student
     avatarUrl: fbUser.photoURL || undefined,
+    completed: false, // Default to false until we verify with Firestore
     createdAt: fbUser.metadata.creationTime || new Date().toISOString()
 });
 
@@ -61,7 +62,11 @@ export const AuthService = {
         const provider = getGoogleProvider();
 
         // HARDENING: Friendly Error if Auth failed to init (e.g. missing keys)
-        if (!auth || !provider) throw new Error("Authentication service unavailable. Please retry.");
+        if (!auth || !provider) {
+            const msg = "Configuration Error: Authentication service unavailable.";
+            console.error("[Auth] Missing Firebase Config");
+            return { status: 'GUEST', user: null, token: null }; // Degrade instead of throw
+        }
 
         try {
             const result = await signInWithPopup(auth, provider);
@@ -73,9 +78,16 @@ export const AuthService = {
                 user: profile,
                 token: await user.getIdToken()
             };
-        } catch (error) {
-            console.error("Firebase Login Error", error);
-            throw error;
+        } catch (error: any) {
+            console.error("[Auth] Google Login Blocked/Failed", error.code, error.message);
+
+            // Map to User-Friendly Errors
+            let friendlyMessage = "Sign-in failed. Please try again.";
+            if (error.code === 'auth/popup-closed-by-user') friendlyMessage = "Sign-in cancelled.";
+            if (error.code === 'auth/popup-blocked') friendlyMessage = "Popup blocked. Please allow popups for this site.";
+            if (error.code === 'auth/network-request-failed') friendlyMessage = "Network error. Check your connection.";
+
+            throw new Error(friendlyMessage);
         }
     },
 

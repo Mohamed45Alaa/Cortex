@@ -7,7 +7,9 @@ import {
     Play,
     PlusCircle,
     CheckCircle,
-    ChevronDown
+    ChevronDown,
+    Edit,
+    Trash2
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { SessionIntelligenceTable } from './SessionIntelligenceTable';
@@ -18,7 +20,7 @@ import { SystemAPI } from '@/core/SystemAPI';
 interface SubjectDetailViewProps {
     subjectId: string;
     onBack: () => void;
-    onQuestionFlowStart: (flowType: 'LECTURE_INTENT' | 'SESSION_START', contextId?: string) => void;
+    onQuestionFlowStart: (flowType: 'LECTURE_INTENT' | 'SESSION_START', contextId?: string, predictedDuration?: number) => void;
 }
 
 export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
@@ -30,16 +32,30 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
     const lectures = useSubjectLectures(subjectId);
 
     // --- CONNECT TO STORE FOR SESSIONS ---
-    const { sessions, authState, openAuthModal } = useStore();
+    const { sessions, authState, openAuthModal, renameSubject, deleteSubject } = useStore();
     const subjectSessions = sessions.filter(s => s.subjectId === subjectId);
 
     // Guard: Subject missing
     if (!subject) return <div className={styles.errorState}>Subject Not Found</div>;
 
+    const handleRename = () => {
+        const newName = prompt("Rename Subject:", subject.name);
+        if (newName && newName.trim() !== "") {
+            renameSubject(subject.id, newName.trim());
+        }
+    };
+
+    const handleDelete = () => {
+        if (confirm(`Are you sure you want to delete "${subject.name}"? This cannot be undone.`)) {
+            deleteSubject(subject.id);
+            onBack(); // Return to dashboard
+        }
+    };
+
     const handleStartSession = async (lectureId: string) => {
         try {
-            await SystemAPI.requestSessionStart(lectureId);
-            onQuestionFlowStart('SESSION_START', lectureId);
+            const context = await SystemAPI.requestSessionStart(lectureId);
+            onQuestionFlowStart('SESSION_START', lectureId, context.predictedDuration);
         } catch (e: any) {
             alert(`SYSTEM LOCKOUT: ${e.reason}`);
         }
@@ -54,10 +70,18 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
                     <ArrowLeft size={20} />
                 </button>
                 <div className={styles.headerInfo}>
-                    <h1 className={styles.subjectTitle}>{subject.name}</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <h1 className={styles.subjectTitle}>{subject.name}</h1>
+                        <button onClick={handleRename} className={styles.iconBtn} title="Rename Subject">
+                            <Edit size={16} />
+                        </button>
+                        <button onClick={handleDelete} className={styles.iconBtn} style={{ color: '#EF4444' }} title="Delete Subject">
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
                     <div className={styles.metaRow}>
                         <span className={`${styles.metaBadge} ${styles.strictnessBadge}`}>
-                            {subject.config.strictnessLevel}
+                            {subject.config?.strictnessLevel ?? 0}
                         </span>
                     </div>
                 </div>

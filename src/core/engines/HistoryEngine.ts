@@ -8,6 +8,8 @@ export interface StudyRecord {
     itemName: string;
     durationMinutes: number;
     difficulty: number;
+    grade?: string; // e.g. 'A+', 'B'
+    cognitiveIndex?: number; // 0-10
     status: 'COMPLETED' | 'PENDING' | 'IN_PROGRESS';
     dateMeta: {
         fullDate: string; // YYYY-MM-DD
@@ -55,8 +57,13 @@ export const HistoryEngine = {
             // Robust Date Handling
             let dateVal = new Date();
             if (session.date) {
-                const parsed = new Date(session.date);
-                if (!isNaN(parsed.getTime())) dateVal = parsed;
+                // Handle Firestore Timestamp (if not converted yet)
+                if (typeof session.date === 'object' && 'seconds' in (session.date as any)) {
+                    dateVal = new Date((session.date as any).seconds * 1000);
+                } else {
+                    const parsed = new Date(session.date);
+                    if (!isNaN(parsed.getTime())) dateVal = parsed;
+                }
             } else if (session.startTime) {
                 dateVal = new Date(session.startTime);
             }
@@ -84,6 +91,8 @@ export const HistoryEngine = {
                 itemName: itemName,
                 durationMinutes: session.actualDuration || 0,
                 difficulty: 5, // Default
+                grade: calculateGrade(session.performanceIndex || 0),
+                cognitiveIndex: (session.performanceIndex || 0) / 10,
                 status: 'COMPLETED',
                 dateMeta: meta,
                 rawDate: session.date || dateVal.toISOString()
@@ -117,6 +126,8 @@ export const HistoryEngine = {
                 itemName: lecture.title,
                 durationMinutes: lecture.duration,
                 difficulty: lecture.relativeDifficulty,
+                grade: lecture.grade,
+                cognitiveIndex: lecture.cognitiveIndex,
                 status: status,
                 dateMeta: meta,
                 rawDate: dateStr
@@ -227,6 +238,20 @@ function formatDate(date: Date): string {
     return `${day} ${month}`;
 }
 
+
 function isDateInRange(target: Date, start: Date, end: Date) {
     return target >= start && target <= end;
 }
+
+function calculateGrade(index: number): string {
+    // Index is 0-100 (PerformanceIndex)
+    const val = index / 10; // Convert to 0-10
+    if (val >= 9.7) return 'A+';
+    if (val >= 9.0) return 'A';
+    if (val >= 8.5) return 'B+';
+    if (val >= 8.0) return 'B';
+    if (val >= 7.5) return 'C+';
+    if (val >= 7.0) return 'C';
+    return 'D';
+}
+

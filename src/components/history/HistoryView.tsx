@@ -75,6 +75,8 @@ const WeekBlock: React.FC<{ block: WeeklyBlock }> = ({ block }) => {
                                 <th>Subject</th>
                                 <th>Item</th>
                                 <th>Duration</th>
+                                <th>Grade</th>
+                                <th>Index</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -98,6 +100,12 @@ const WeekBlock: React.FC<{ block: WeeklyBlock }> = ({ block }) => {
                                     </td>
                                     <td className="font-mono text-sm opacity-70">
                                         {record.durationMinutes}m
+                                    </td>
+                                    <td className="font-bold text-sm">
+                                        {record.grade || '-'}
+                                    </td>
+                                    <td className="font-mono text-xs opacity-60">
+                                        {record.cognitiveIndex?.toFixed(1) || '-'}
                                     </td>
                                     <td>
                                         <StatusBadge status={record.status} />

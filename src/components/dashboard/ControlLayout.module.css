@@ -354,3 +354,100 @@
     width: 0;
     display: none;
 }
+
+/* --- MOBILE ADAPTIVE SYSTEM --- */
+
+@media (max-width: 768px) {
+
+    /* Layout Reset */
+    .mainContent {
+        margin-right: 0 !important;
+        /* No sidebar push */
+        width: 100vw;
+    }
+
+    /* Mobile Header */
+    .header {
+        padding: 0 16px;
+        height: 60px;
+        justify-content: space-between;
+    }
+
+    .headerLeft,
+    .headerRight {
+        gap: 12px;
+    }
+
+    /* Sidebar as Overlay */
+    .sidebar {
+        width: 280px !important;
+        /* Always full width when open */
+        transform: translateX(100%);
+        /* Hidden by default (Right side) */
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 200;
+        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
+    }
+
+    .sidebarOpen {
+        transform: translateX(0);
+        /* Slide in */
+    }
+
+    .sidebarClosed {
+        transform: translateX(100%);
+        /* Slide out */
+        width: 280px !important;
+    }
+
+    /* Hide Desktop Sidebar Toggle */
+    .sidebarToggle {
+        display: none;
+    }
+
+    /* Mobile Menu Button */
+    .mobileMenuBtn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        color: white;
+        padding: 8px;
+        margin-right: -8px;
+    }
+
+    /* Backdrop */
+    .backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 150;
+        animation: fadeIn 0.3s ease;
+    }
+
+    /* Logo Adjustments */
+    .logoArea {
+        padding-right: 20px;
+        /* Reset padding */
+    }
+
+    .contentViewport {
+        padding: 20px;
+        /* Reduced padding */
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

@@ -124,6 +124,11 @@ export const translations = {
         strat_aggressive: "Aggressive (Maintenance)",
         sys_override: "System Override",
         override_warning: "Changing these values will recalibrate all upcoming session predictions for this subject. Existing stability metrics will be preserved.",
+
+        // Expected Time (New)
+        hours: "hours",
+        minutes: "minutes",
+        expectedTime: "Expected study time",
     },
     ar: {
         orientation: "نظم حملك الدراسي، قراراً تلو الآخر.",
@@ -249,5 +254,10 @@ export const translations = {
         strat_aggressive: "هجومي (صيانة)",
         sys_override: "تجاوز النظام",
         override_warning: "تغيير هذه القيم سيؤدي إلى إعادة معايرة جميع توقعات الجلسات القادمة لهذا المقرر. سيتم الاحتفاظ بمقاييس الاستقرار الحالية.",
+
+        // Expected Time (New)
+        hours: "ساعات",
+        minutes: "دقائق",
+        expectedTime: "وقت الدراسة المتوقع",
     }
 };

@@ -183,3 +183,92 @@
     font-size: 0.8rem;
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+/* --- MOBILE ADAPTIVE HISTORY --- */
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+
+    .title {
+        font-size: 1.5rem;
+    }
+
+    /* Stack Week Header */
+    .weekHeader {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .weekStatus {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    /* Table -> Cards Transformation */
+    .historyTable,
+    .historyTable tbody,
+    .historyTable tr,
+    .historyTable td {
+        display: block;
+        width: 100%;
+    }
+
+    .historyTable thead {
+        display: none;
+        /* Hide headers */
+    }
+
+    .recordRow {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        margin-bottom: 12px;
+        padding: 12px;
+    }
+
+    .historyTable td {
+        padding: 4px 0;
+        border-bottom: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    /* Add Pseudo-labels for context */
+    .historyTable td:nth-of-type(2)::before {
+        content: "Subject";
+        opacity: 0.5;
+        font-size: 0.8rem;
+    }
+
+    .historyTable td:nth-of-type(4)::before {
+        content: "Duration";
+        opacity: 0.5;
+        font-size: 0.8rem;
+    }
+
+    .historyTable td:nth-of-type(5)::before {
+        content: "Status";
+        opacity: 0.5;
+        font-size: 0.8rem;
+    }
+
+    /* Specific Tweaks */
+    .dayCell {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+        padding-bottom: 8px !important;
+        margin-bottom: 8px;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        display: flex;
+    }
+
+    /* Subject Badge alignment */
+    .subjectBadge {
+        margin-left: auto;
+    }
+}

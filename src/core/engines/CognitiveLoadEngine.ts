@@ -95,8 +95,9 @@ export const CognitiveLoadEngine = {
 
     /**
      * Checks if a specific action is blocked by the regulator.
+     * [PRODUCT CHANGE]: ALWAYS FALSE. Analytics only.
      */
     isLockedOut: (currentLoad: DailyLoad): boolean => {
-        return currentLoad.status === 'Risk';
+        return false;
     }
 };

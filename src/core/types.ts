@@ -73,6 +73,19 @@ export interface Lecture {
      */
     relativeDifficulty: number;
 
+    /** [DETERMINISTIC] 0-10 derived from Duration (15m=1.667 -> 120m=10) */
+    timeDifficulty?: number;
+
+    /** [DETERMINISTIC] 0-10 derived from User Input (11 - Understanding) */
+    understandingDifficulty?: number;
+
+    /** [DETERMINISTIC] 0-10 Personal Performance Index */
+    cognitiveIndex?: number;
+
+    /** [DETERMINISTIC] Grade based on Cognitive Index */
+    grade?: 'A+' | 'A' | 'B+' | 'B' | 'C+' | 'C' | 'D';
+
+
     /**
      * Derived system state.
      * - Pending: Not started.
@@ -87,6 +100,14 @@ export interface Lecture {
 
     /** Calculated weight (Duration * Diff). Persisted to avoid recalc. */
     cognitiveWeight: number;
+
+    /** 
+     * [FIXED BASELINE] 
+     * The Expected Study Time computed ONCE at creation.
+     * Rule: Duration * 2 (First-Time Student Rule).
+     * This is the Single Source of Truth for pre-study expectations.
+     */
+    expectedDuration: number;
 
     lastRevision?: string; // ISO Date
 }
@@ -124,6 +145,7 @@ export interface StudentProfile {
      * Used by TimePredictionEngine to adjust confidence intervals.
      */
     consistencyIndex: number; // 0-100
+    learningPhase: 'INIT' | 'NOVICE' | 'ADAPTIVE'; // [CRITICAL ARCHITECTURE] Persistent State
 
     totalSessions: number;
 
@@ -155,6 +177,9 @@ export interface StudySession {
 
     /** How long it actually took vs Predicted */
     actualDuration: number;
+
+    /** [DETERMINISTIC] Actual time recorded by stopwatch */
+    measuredDuration?: number;
 
     /** The computed cost extracted from the user */
     cognitiveCost: number;
@@ -201,20 +226,69 @@ export type UserRole = 'GUEST' | 'STUDENT' | 'ADMIN';
 export interface UserProfile {
     id: string;
     email: string; // Identity
-    name: string;  // Display
+    name: string;  // Display Name (Google)
+    fullName?: string; // Official Arabic Name (3-part)
     role: UserRole;
     avatarUrl?: string; // Visual
 
     // Academic Context
+    academicYear?: "Year 1" | "Year 2" | "Year 3" | "Year 4" | "Year 5";
     university?: string;
     faculty?: string;
     academicTrack?: string;
 
+    completed: boolean; // True if mandatory profile is filled
     createdAt: string;
 }
 
 export interface AuthContextState {
-    status: 'GUEST' | 'AUTHENTICATED';
+    status: 'GUEST' | 'AUTHENTICATED' | 'LOADING';
     user: UserProfile | null;
-    token: string | null; // For API calls
+    token: string | null;
 }
+
+// --- 7. Real-Time Monitoring & Admin (New System) ---
+
+// --- 7. Real-Time Monitoring & Admin (Dual Layer System) ---
+
+export type PresenceStatus = 'online' | 'background' | 'offline';
+export type StudyMode = 'in_session' | 'browsing' | 'idle' | 'none';
+
+export interface PresenceState {
+    status: PresenceStatus;
+    lastSeenAt: any; // Firestore Timestamp
+}
+
+export interface StudyState {
+    mode: StudyMode;
+    lastInteractionAt: any; // Firestore Timestamp
+    sessionActive: boolean;
+}
+
+// Admin Aggregated View
+export interface StudentMonitorData extends UserProfile {
+    presence: PresenceState;
+    study: StudyState;
+}
+
+export interface SessionRecord {
+    id: string; // Document ID
+    startedAt: any;
+    endedAt: any | null;
+    duration: number | null; // Minutes
+    isActive: boolean;
+}
+
+export interface Subscription {
+    isActive: boolean;
+    plan: 'FREE' | 'PRO' | 'ENTERPRISE' | null;
+    startedAt: any | null;
+    expiresAt: any | null;
+}
+
+// UserProfile Extension (Optional for backward compatibility in types)
+export interface UserProfileWithMeta extends UserProfile {
+    presence?: PresenceState;
+    subscription?: Subscription;
+}
+

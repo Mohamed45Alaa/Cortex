@@ -1,4 +1,5 @@
 import { Subject, Lecture, Difficulty, MentalLoad, LectureType } from '../types';
+import { CognitiveEngine } from './CognitiveEngine';
 
 export const AcademicStructureEngine = {
     createSubject: (name: string, examDate: string, difficulty: Difficulty): Subject => {
@@ -32,7 +33,8 @@ export const AcademicStructureEngine = {
         duration: number,
         understandingScore: number, // 1-10
         mentalLoad: MentalLoad,
-        type: LectureType
+        type: LectureType,
+        studentState: { phase: 'INIT' | 'NOVICE' | 'ADAPTIVE', index: number }
     ): Lecture => {
         // Basic validation
         if (duration <= 0) throw new Error("Duration must be positive");
@@ -77,6 +79,30 @@ export const AcademicStructureEngine = {
         // Calculate basic weight
         const weight = duration * relativeDifficulty;
 
+        // --- 3. EXPECTED STUDY TIME (PERSISTENT PHASE) ---
+        let expectedDuration = 0;
+
+        switch (studentState.phase) {
+            case 'INIT':
+                // [INIT] Pure Safety Rule
+                expectedDuration = duration * 2;
+                break;
+            case 'NOVICE':
+                // [NOVICE] Soft Adaptation
+                expectedDuration = duration * 2.5;
+                break;
+            case 'ADAPTIVE':
+                // [ADAPTIVE] Engine Calculation
+                expectedDuration = CognitiveEngine.calculateExpectedStudyTime(
+                    duration,
+                    relativeDifficulty,
+                    studentState.index
+                );
+                break;
+            default:
+                expectedDuration = duration * 2; // Fallback
+        }
+
         return {
             id: crypto.randomUUID(),
             subjectId,
@@ -87,6 +113,7 @@ export const AcademicStructureEngine = {
             cognitiveWeight: weight,
             stability: 0,
             relativeDifficulty, // Persisted Strictly
+            expectedDuration,
             createdAt: new Date().toISOString()
         };
     }

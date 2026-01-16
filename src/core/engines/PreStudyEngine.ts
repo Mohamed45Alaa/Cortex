@@ -1,4 +1,5 @@
 import { Lecture, StudySession, MentalLoad } from '../types';
+import { CognitiveEngine } from './CognitiveEngine';
 
 export const PreStudyEngine = {
     /**
@@ -66,7 +67,7 @@ export const PreStudyEngine = {
             endTime: null,
             status: 'IN_PROGRESS',
 
-            expectedDuration: lecture.duration, // Simplified
+            expectedDuration: CognitiveEngine.calculateExpectedStudyTime(lecture.duration, lecture.relativeDifficulty),
             actualDuration: 0,
             cognitiveCost: 0,
             performanceIndex: 0,

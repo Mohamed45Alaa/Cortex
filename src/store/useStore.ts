@@ -12,20 +12,26 @@ import {
     UserProfile
 } from '@/core/types';
 import { AuthService } from '@/core/services/AuthService';
+import { FirestoreService } from '@/core/services/FirestoreService';
+import { getDatabaseInstance } from '@/core/services/firebase';
+import { ref, onValue } from 'firebase/database';
+import { CognitiveEngine } from '@/core/engines/CognitiveEngine';
 
-/**
- * CENTRAL SYSTEM STORE
- * Reference: PHASE_1_SYSTEM_ARCHITECTURE.md
- * 
- * This store contains the distinct "Planes" of data:
- * 1. Profile Plane (User)
- * 2. Inventory Plane (Subjects/Lectures)
- * 3. Log Plane (Sessions/DailyLoad)
- * 
- * It strictly enforces atomic updates.
- */
+// --- ADMIN STATE SLICE ---
+interface AdminSlice {
+    students: UserProfile[];
+    selectedStudent: UserProfile | null;
+    isAdminMode: boolean; // UI Toggle
+    adminError: string | null; // Error State for UI Feedback
 
-interface SystemState {
+    // Actions
+    fetchStudents: () => Promise<void>;
+    selectStudent: (student: UserProfile | null) => void;
+    setAdminMode: (isActive: boolean) => void;
+}
+
+// Merge SystemState
+interface SystemState extends AdminSlice {
     // --- STATE SLICES ---
 
     profile: StudentProfile;
@@ -37,6 +43,10 @@ interface SystemState {
     // --- AUTHENTICATION ---
     authState: AuthContextState;
     authModal: { isOpen: boolean; mode: 'LOGIN' | 'REGISTER'; onSuccess?: () => void };
+    unsubscribeSnapshot?: () => void; // Listener cleanup
+
+    // Remote Termination State
+    terminationState: { reason: string; message: string; severity?: 'warning' | 'info' } | null;
 
     // --- ACTIVE SESSION (PERSISTENCE) ---
     activeSession: {
@@ -53,6 +63,8 @@ interface SystemState {
 
     // 1. Subject Control
     addSubject: (subject: Subject) => void;
+    renameSubject: (id: string, newName: string) => void;
+    deleteSubject: (id: string) => void;
     updateSubjectConfig: (id: string, config: Partial<SubjectConfig>) => void;
     updateSubjectMetrics: (id: string, metrics: Partial<SubjectMetrics>) => void;
 
@@ -70,7 +82,7 @@ interface SystemState {
 
     // 4. Active Session Control
     startActiveSession: (lectureId: string, durationMinutes: number, subjectId: string) => void;
-    endActiveSession: () => void; // Finalizes the session
+    endActiveSession: (penalty?: boolean, isRemoteKill?: boolean, terminationPayload?: { reason: string; message: string; severity?: 'warning' | 'info' }) => void; // Finalizes the session
     pauseActiveSession: () => void;
     resumeActiveSession: () => void;
     deleteLecture: (lectureId: string) => void;
@@ -82,6 +94,7 @@ interface SystemState {
     register: (identity: any, profile: any) => Promise<boolean>;
     logout: () => void;
     syncAuth: () => void;
+    initializeRealtimeSync: (uid: string) => void;
 
     // --- UI ACTIONS ---
     openAuthModal: (mode?: 'LOGIN' | 'REGISTER', onSuccess?: () => void) => void;
@@ -94,32 +107,107 @@ export const useStore = create<SystemState>()(
             // --- INITIAL STATE ---
 
             profile: {
-                consistencyIndex: 85, // Start with B grade compliance
+                consistencyIndex: 85,
+                learningPhase: 'INIT',
                 totalSessions: 0,
-                currentCapacity: 100, // Fresh battery
-                lastSessionDate: new Date().toISOString()
+                currentCapacity: 100,
+                lastSessionDate: "2024-01-01T00:00:00.000Z"
             },
+
             subjects: [],
             lectures: [],
             sessions: [],
             dailyLoad: {
-                date: new Date().toISOString().split('T')[0],
+                date: "2024-01-01",
                 totalCognitiveCost: 0,
                 status: 'Safe'
             },
 
 
             // Initialize from Service (Synchronous part, usually guest)
-            authState: { status: 'GUEST', user: null, token: null },
+            authState: { status: 'LOADING', user: null, token: null },
             authModal: { isOpen: false, mode: 'LOGIN', onSuccess: undefined },
+            unsubscribeSnapshot: undefined,
 
             activeSession: null,
 
+            // --- ADMIN SLICE INIT ---
+            students: [],
+            selectedStudent: null,
+            isAdminMode: false,
+            adminError: null,
+
+            // --- ADMIN ACTIONS ---
+            fetchStudents: async () => {
+                const { students, error } = await import('@/core/services/AdminService').then(m => m.AdminService.getAllStudents());
+                if (error) {
+                    set({ students: [], adminError: error });
+                } else {
+                    set({ students: students, adminError: null });
+                }
+            },
+
+            selectStudent: (student) => set({ selectedStudent: student }),
+
+            setAdminMode: (isActive) => set({ isAdminMode: isActive }),
+
+
             // --- ACTIONS ---
 
-            addSubject: (subject) => set((state) => ({
-                subjects: [...state.subjects, subject]
-            })),
+            addSubject: (subject) => set((state) => {
+                // FIRESTORE SYNC (Atomic Beacon)
+                const user = state.authState.user;
+                if (state.authState.status === 'AUTHENTICATED' && user) {
+
+                    // Prepare Snapshot (e.g. update totals or just touch timestamp)
+                    const nextSnapshot = {
+                        profile: state.profile, // Can update totals here if needed
+                        dailyLoad: state.dailyLoad
+                    };
+
+                    FirestoreService.saveSubjectWithSnapshot(user.id, subject.id, subject, nextSnapshot);
+                }
+
+                // Optimistic Update
+                return {
+                    subjects: [...state.subjects, subject]
+                };
+            }),
+
+            renameSubject: (id: string, newName: string) => set((state) => {
+                // FIRESTORE SYNC (Atomic Beacon)
+                const user = state.authState.user;
+                if (state.authState.status === 'AUTHENTICATED' && user) {
+                    // Prepare Snapshot (Touch timestamp)
+                    const nextSnapshot = { profile: state.profile, dailyLoad: state.dailyLoad };
+                    FirestoreService.saveSubjectWithSnapshot(user.id, id, { name: newName }, nextSnapshot);
+                }
+
+                return {
+                    subjects: state.subjects.map(s =>
+                        s.id === id ? { ...s, name: newName } : s
+                    )
+                };
+            }),
+
+            deleteSubject: (id: string) => set((state) => {
+                // FIRESTORE SYNC (Recursive & Atomic)
+                const user = state.authState.user;
+                if (state.authState.status === 'AUTHENTICATED' && user) {
+                    // Update Snapshot Stats (Decrease count potentially, or just touch)
+                    const nextSnapshot = {
+                        profile: state.profile,
+                        dailyLoad: state.dailyLoad
+                    };
+                    FirestoreService.deleteSubjectRecursive(user.id, id, nextSnapshot);
+                }
+
+                return {
+                    subjects: state.subjects.filter(s => s.id !== id),
+                    lectures: state.lectures.filter(l => l.subjectId !== id),
+                    sessions: state.sessions.filter(s => s.subjectId !== id)
+                };
+            }),
 
             updateSubjectConfig: (id, config) => set((state) => ({
                 subjects: state.subjects.map(s =>
@@ -133,9 +221,22 @@ export const useStore = create<SystemState>()(
                 )
             })),
 
-            addLecture: (lecture) => set((state) => ({
-                lectures: [...state.lectures, lecture]
-            })),
+            addLecture: (lecture) => set((state) => {
+                // FIRESTORE SYNC
+                const user = state.authState.user;
+                if (state.authState.status === 'AUTHENTICATED' && user) {
+                    FirestoreService.saveLecture(
+                        user.id,
+                        lecture.subjectId,
+                        lecture.id,
+                        lecture
+                    );
+                }
+
+                return {
+                    lectures: [...state.lectures, lecture]
+                };
+            }),
 
             updateLectureStatus: (id, status) => set((state) => ({
                 lectures: state.lectures.map(l =>
@@ -168,6 +269,36 @@ export const useStore = create<SystemState>()(
                 if (newCost > 100) status = 'Risk';
                 else if (newCost > 80) status = 'Warning';
 
+                // FIRESTORE SYNC (Atomic Snapshot Strategy)
+                const user = state.authState.user;
+                if (state.authState.status === 'AUTHENTICATED' && user) {
+
+                    // Prepare Snapshot State
+                    const nextProfile = {
+                        ...state.profile,
+                        totalSessions: state.profile.totalSessions + 1,
+                        learningPhase: (state.profile.totalSessions + 1) >= 3 ? 'ADAPTIVE' :
+                            (state.profile.totalSessions + 1) >= 1 ? 'NOVICE' : 'INIT',
+                        lastSessionDate: new Date().toISOString()
+                    };
+
+                    const snapshot = {
+                        profile: nextProfile,
+                        dailyLoad: {
+                            totalCognitiveCost: newCost,
+                            status
+                        },
+                    };
+
+                    // Atomic Write
+                    FirestoreService.saveSessionWithSnapshot(
+                        user.id,
+                        session,
+                        snapshot
+                    );
+                }
+
+                // Optimistic Local Update (Will be confirmed by Snapshot Listener)
                 return {
                     sessions: newSessions,
                     dailyLoad: {
@@ -178,6 +309,9 @@ export const useStore = create<SystemState>()(
                     profile: {
                         ...state.profile,
                         totalSessions: state.profile.totalSessions + 1,
+                        // [CRITICAL LOGIC] Persistent Phase Transition
+                        learningPhase: (state.profile.totalSessions + 1) >= 3 ? 'ADAPTIVE' :
+                            (state.profile.totalSessions + 1) >= 1 ? 'NOVICE' : 'INIT',
                         lastSessionDate: new Date().toISOString()
                     }
                 };
@@ -200,6 +334,9 @@ export const useStore = create<SystemState>()(
 
             setProfile: (profile) => set(() => ({ profile })),
 
+            // --- REMOTE TERMINATION STATE ---
+            terminationState: null as { reason: string; message: string; severity?: 'warning' | 'info' } | null,
+
             // --- ACTIVE SESSION ACTIONS ---
             startActiveSession: (lectureId, durationMinutes, subjectId) => set(() => ({
                 activeSession: {
@@ -210,7 +347,8 @@ export const useStore = create<SystemState>()(
                     pausedAt: null, // Start running
                     totalPausedTime: 0,
                     isActive: true
-                }
+                },
+                terminationState: null // Reset on start
             })),
 
             pauseActiveSession: () => set((state) => {
@@ -235,58 +373,138 @@ export const useStore = create<SystemState>()(
                 };
             }),
 
-            endActiveSession: () => set((state) => {
-                console.log("[STORE] endActiveSession triggered. Active:", state.activeSession);
+            endActiveSession: (penalty = false, isRemoteKill = false, terminationPayload) => set((state) => {
+                console.log("[STORE] endActiveSession triggered.", { active: !!state.activeSession, penalty, isRemoteKill, hasPayload: !!terminationPayload });
+
+                // REMOTE KILL: Immediate Reset (Server has already handled data)
+                if (isRemoteKill) {
+                    return {
+                        activeSession: null,
+                        terminationState: terminationPayload || null
+                    };
+                }
+
                 if (!state.activeSession) return {};
 
                 const now = Date.now();
-                // Calculate net duration
+                // 1. Calculate net duration
                 let netDuration = now - state.activeSession.startTime;
                 if (state.activeSession.pausedAt) {
                     netDuration -= (now - state.activeSession.pausedAt);
                 }
                 netDuration -= state.activeSession.totalPausedTime;
+                const actualMinutes = Math.max(1, Math.round(netDuration / 60000));
 
-                const finalMinutes = Math.max(1, Math.round(netDuration / 60000));
+                // 2. Fetch Context (Lecture/Subject)
+                const lecture = state.lectures.find(l => l.id === state.activeSession?.lectureId);
+                if (!lecture) {
+                    console.error("CRITICAL: Lecture not found for active session.");
+                    return { activeSession: null };
+                }
 
-                // Logic: < 15m => INTERRUPTED, else COMPLETED
-                const status = finalMinutes < 15 ? 'INTERRUPTED' : 'COMPLETED';
+                // 3. EXECUTE COGNITIVE ENGINE (The wiring)
+                let metrics = CognitiveEngine.calculate({
+                    lectureDuration: lecture.duration,
+                    actualDuration: actualMinutes,
+                    relativeDifficulty: lecture.relativeDifficulty,
+                    studentIndex: lecture.cognitiveIndex || null
+                });
 
+                // PENALTY OVERRIDE (Forced Close)
+                if (penalty) {
+                    metrics = {
+                        ...metrics,
+                        performanceGrade: 'C', // "Least Grade C"
+                        performanceIndex: 0,   // "Failure"
+                        cognitiveLoadIndex: 100 // "Maximum Penalty"
+                    };
+                }
+
+                console.log("[STORE] Cognitive Metrics Calculated:", metrics);
+
+                // 4. Construct Final Session Record
                 const newSession: StudySession = {
                     id: crypto.randomUUID(),
-                    lectureId: state.activeSession.lectureId,
-                    parentId: state.activeSession.lectureId, // Assuming 1:1 for now
-                    subjectId: "derived_later_or_lookup", // Ideally store activeSession has subjectId
+                    lectureId: lecture.id,
+                    parentId: lecture.id,
+                    subjectId: lecture.subjectId,
                     date: new Date().toISOString(),
                     startTime: state.activeSession.startTime,
                     endTime: now,
-                    expectedDuration: state.activeSession.originalDuration,
-                    actualDuration: finalMinutes,
-                    cognitiveCost: finalMinutes * 1.5, // Mock cost logic or import Engine? Keep simple for store.
-                    performanceIndex: 0, // Engine should calculate this
-                    focusPerformance: 100,
-                    status: status
+                    status: penalty ? 'INTERRUPTED' : (actualMinutes < 5 ? 'INTERRUPTED' : 'COMPLETED'),
+
+                    // PERSISTED METRICS
+                    expectedDuration: metrics.expectedStudyTimeMinutes,
+                    actualDuration: actualMinutes,
+                    cognitiveCost: metrics.cognitiveLoadIndex,
+                    performanceIndex: metrics.performanceIndex,
+                    focusPerformance: penalty ? 0 : 100,
                 };
 
-                // Look up subjectId from lecture
-                // Look up subjectId from stored session or lecture lookup
-                if (state.activeSession.subjectId) {
-                    newSession.subjectId = state.activeSession.subjectId;
-                } else {
-                    const lecture = state.lectures.find(l => l.id === state.activeSession?.lectureId);
-                    if (lecture) {
-                        newSession.subjectId = lecture.subjectId;
-                        console.log("[STORE] Found Lecture for SubjectID via Lookup:", lecture.subjectId);
-                    } else {
-                        console.error("[STORE] Lecture NOT FOUND for ID:", state.activeSession?.lectureId);
+                // 5. UPDATE LECTURE STATE (Persistence of Result)
+                const updatedLectures = state.lectures.map(l => {
+                    if (l.id === lecture.id) {
+                        return {
+                            ...l,
+                            status: 'Mastered',
+                            cognitiveIndex: metrics.performanceIndex,
+                            grade: metrics.performanceGrade,
+                            lastRevision: new Date().toISOString(),
+                            stability: Math.min(100, l.stability + 10)
+                        } as Lecture;
                     }
+                    return l;
+                });
+
+                // 6. FIRESTORE SYNC (The Missing Piece)
+                const user = state.authState.user;
+                if (state.authState.status === 'AUTHENTICATED' && user) {
+                    // Prepare Snapshot
+                    const nextProfile = {
+                        ...state.profile,
+                        totalSessions: state.profile.totalSessions + 1,
+                        learningPhase: (state.profile.totalSessions + 1) >= 3 ? 'ADAPTIVE' :
+                            (state.profile.totalSessions + 1) >= 1 ? 'NOVICE' : 'INIT',
+                        lastSessionDate: new Date().toISOString()
+                    };
+
+                    const nextDailyLoad = {
+                        ...state.dailyLoad,
+                        totalCognitiveCost: state.dailyLoad.totalCognitiveCost + metrics.cognitiveLoadIndex,
+                        // Recalculate status simply here or rely on registerSession logic? 
+                        // For now, simple accumulation. Real guard logic is elsewhere.
+                    };
+
+                    const snapshot = {
+                        profile: nextProfile,
+                        dailyLoad: nextDailyLoad
+                    };
+
+                    console.log("[STORE] Persisting Ended Session to Firestore...", newSession.id);
+                    FirestoreService.saveSessionWithSnapshot(
+                        user.id,
+                        newSession,
+                        snapshot
+                    );
                 }
 
-                console.log("[STORE] Saving New Session:", newSession);
+                console.log("[STORE] Session Persisted Locally & Cloud.");
 
                 return {
                     sessions: [...state.sessions, newSession],
-                    activeSession: null
+                    lectures: updatedLectures,
+                    activeSession: null,
+                    dailyLoad: {
+                        ...state.dailyLoad,
+                        totalCognitiveCost: state.dailyLoad.totalCognitiveCost + metrics.cognitiveLoadIndex
+                    },
+                    profile: {
+                        ...state.profile,
+                        totalSessions: state.profile.totalSessions + 1,
+                        learningPhase: (state.profile.totalSessions + 1) >= 3 ? 'ADAPTIVE' :
+                            (state.profile.totalSessions + 1) >= 1 ? 'NOVICE' : 'INIT',
+                        lastSessionDate: new Date().toISOString()
+                    }
                 };
             }),
 
@@ -315,6 +533,108 @@ export const useStore = create<SystemState>()(
                 try {
                     const result = await AuthService.loginWithGoogle();
                     set({ authState: result });
+
+                    // FIRESTORE SYNC: Load User Data
+                    if (result.status === 'AUTHENTICATED' && result.user) {
+                        const userData = await FirestoreService.loadUserData(result.user.id);
+                        if (userData) {
+                            set((state) => {
+                                // CRITICAL FIX: Merge persisted identity (completed flag) into AuthState
+                                const updatedUser = state.authState.user && userData.identityProfile
+                                    ? { ...state.authState.user, ...userData.identityProfile }
+                                    : state.authState.user;
+
+                                // A) SIGN-UP / FIRST LOGIN LOGIC (Robust Merge)
+                                if (result.user) {
+                                    const currentUser = result.user;
+                                    const existing = userData.identityProfile || {};
+
+                                    // QUOTA GUARD: THROTTLE LOGIN WRITES (1 Hour)
+                                    const lastLogin = existing.lastLoginAt ? new Date(existing.lastLoginAt).getTime() : 0;
+                                    const shouldWrite = (Date.now() - lastLogin) > 3600000;
+
+                                    if (shouldWrite) {
+                                        // Base Payload: Always ensure Email is current
+                                        const payload: any = {
+                                            email: currentUser.email,
+                                            lastActive: new Date().toISOString(),
+                                            lastLoginAt: new Date().toISOString(),
+                                            lastLoginDevice: navigator.userAgent,
+                                            lastLoginIP: 'Unknown'
+                                        };
+
+                                        // Conditional Defaults: Only set if missing (NO OVERWRITE)
+                                        if (!existing.role) payload.role = 'STUDENT';
+                                        if (!existing.createdAt) payload.createdAt = new Date().toISOString();
+                                        if (existing.completed === undefined) payload.completed = false;
+
+                                        console.log("[Store] Persisting/Merging User Profile (Throttled):", payload);
+                                        FirestoreService.saveUserProfile(currentUser.id, payload);
+                                    } else {
+                                        console.log("[Store] Login Write Skipped (Throttled 1h)");
+                                    }
+
+                                    // Reflect in Local State immediately (for UI consistency)
+                                    if (state.authState.user) {
+                                        // Object.assign(state.authState.user, payload); // Don't blindly assign if we didn't generate payload components
+                                    }
+                                }
+
+                                const isLocalFresh = state.subjects.length === 0 && state.sessions.length === 0;
+                                console.log("[Store] Merging Firestore Data. Local Fresh:", isLocalFresh);
+
+                                // Update AuthState immediately to pass RootGate
+                                if (updatedUser !== state.authState.user) {
+                                    state.authState.user = updatedUser; // Direct mutation ok inside set, or use spread below
+                                }
+
+                                if (!isLocalFresh && !userData.subjects.length) {
+                                    return { authState: { ...state.authState, user: updatedUser } };
+                                }
+
+                                // SNAPSHOT HYDRATION STRATEGY
+                                if (userData.stateSnapshot) {
+                                    console.log("[Store] Hydrating from Snapshot (User Truth)");
+                                    return {
+                                        authState: { ...state.authState, user: updatedUser }, // Ensure AuthState is updated
+                                        profile: { ...state.profile, ...userData.stateSnapshot.profile },
+                                        dailyLoad: { ...state.dailyLoad, ...userData.stateSnapshot.dailyLoad },
+                                        subjects: userData.subjects.length > 0 ? userData.subjects : state.subjects,
+                                        lectures: userData.lectures.length > 0 ? userData.lectures : state.lectures,
+                                        sessions: userData.sessions.length > 0 ? userData.sessions : state.sessions
+                                    };
+                                }
+
+                                // FALLBACK: No Snapshot -> Recompute & Heal
+                                console.warn("[Store] No Snapshot found. Recomputing from raw data...");
+                                const calculatedSessions = userData.sessions.length || state.profile.totalSessions;
+                                // Simple recompute logic (expand as needed)
+                                const healedProfile = {
+                                    ...state.profile,
+                                    totalSessions: calculatedSessions,
+                                    learningPhase: calculatedSessions >= 3 ? 'ADAPTIVE' : calculatedSessions >= 1 ? 'NOVICE' : 'INIT',
+                                };
+
+                                // Initiate Healing Save (Async, don't await)
+                                if (result.user) {
+                                    FirestoreService.saveStateSnapshot(result.user.id, {
+                                        profile: healedProfile,
+                                        dailyLoad: state.dailyLoad // Keep current load or 0 if fresh
+                                    });
+                                }
+
+                                return {
+                                    authState: { ...state.authState, user: updatedUser },
+                                    profile: healedProfile,
+                                    subjects: userData.subjects.length > 0 ? userData.subjects : state.subjects,
+                                    lectures: userData.lectures.length > 0 ? userData.lectures : state.lectures,
+                                    sessions: userData.sessions.length > 0 ? userData.sessions : state.sessions
+                                } as any;
+                            });
+                            console.log("[Store] Hydrated from Firestore", userData);
+                        }
+                    }
+
                     return { success: true };
                 } catch (e: any) {
                     console.error("Google Login Failed", e);
@@ -339,9 +659,101 @@ export const useStore = create<SystemState>()(
             },
 
             syncAuth: () => {
-                // Return unsubscriber?
-                AuthService.initCallback((newState) => {
-                    set({ authState: newState });
+                const unsubscribe = AuthService.initCallback((result) => {
+                    set((state) => {
+                        // Cleanup listener on logout
+                        if (result.status !== 'AUTHENTICATED' && state.unsubscribeSnapshot) {
+                            console.log("[Store] Cleaning up snapshot listener");
+                            state.unsubscribeSnapshot();
+                            return { authState: result, unsubscribeSnapshot: undefined };
+                        }
+
+                        // [CRITICAL FIX] MERGE LOGIC
+                        // If we are authenticated and the UID matches our hydrated local state,
+                        // we MUST preserve the local profile data (completed, academicYear, etc.)
+                        // because raw Firebase Auth result doesn't have them.
+                        if (result.status === 'AUTHENTICATED' && result.user && state.authState.user?.id === result.user.id) {
+
+                            // Merge Strategy: Take fresh Auth data (token, email) + Overlay Local Profile Data
+                            const mergedUser = {
+                                ...result.user, // Fresh Identity
+                                ...state.authState.user, // Persisted Profile (wins for custom fields)
+                                // Explicitly re-apply fresh identity criticals if needed, 
+                                // but usually local state has the correct data from previous session.
+                                // To be safe, we ensure 'completed' is strictly preserved if true.
+                                completed: state.authState.user.completed === true ? true : result.user.completed
+                            };
+
+                            console.log("[Store] syncAuth: Preserved Local Profile", {
+                                wasCompleted: state.authState.user.completed,
+                                nowCompleted: mergedUser.completed
+                            });
+
+                            return { authState: { ...result, user: mergedUser } };
+                        }
+
+                        return { authState: result };
+                    });
+                });
+                // Note: We don't store the auth unsubscribe here as it's global.
+            },
+
+            initializeRealtimeSync: (uid) => {
+                set((state) => {
+                    // Cleanup existing
+                    if (state.unsubscribeSnapshot) {
+                        state.unsubscribeSnapshot();
+                    }
+
+                    console.log("[Store] Initializing Real-Time Sync for:", uid);
+
+                    // A. FIRESTORE LISTENER (Metrics Beacon)
+                    const unsubscribeFirestore = FirestoreService.subscribeToSnapshot(uid, async (snapshot: any) => {
+                        console.log("[Store] ⚡ Snapshot Beacon Received (Metrics Update)");
+                        set((currentState) => ({
+                            profile: { ...currentState.profile, ...snapshot.profile },
+                            dailyLoad: { ...currentState.dailyLoad, ...snapshot.dailyLoad }
+                        }));
+                    });
+
+                    // B. RTDB LISTENER (Session Kill Switch & Connection)
+                    let unsubscribeRTDB = () => { };
+                    const db = getDatabaseInstance();
+                    if (db) {
+                        const sessionRef = ref(db, `status/${uid}/activeSession`);
+                        const cleanRTDB = onValue(sessionRef, (snapshot) => {
+                            const remoteSession = snapshot.val();
+                            const currentStore = get();
+
+                            // KILL SWITCH LOGIC
+                            // IF Local thinks we are active (activeSession != null)
+                            // AND Remote says we are inactive (remoteSession == null)
+                            // THEN Force End Local Session.
+                            // KILL SWITCH LOGIC
+                            // IF Local thinks we are active (activeSession != null)
+                            // AND Remote says we are inactive (remoteSession == null)
+                            // THEN Force End Local Session.
+                            if (currentStore.activeSession && !remoteSession) {
+                                console.warn("[Store] 🚨 REMOTE KILL SWITCH TRIGGERED: Session Force Ended by Server/Admin.");
+
+                                // 1. Terminate Local Session State (Silent Reset)
+                                // Pass 'true' for isRemoteKill to SKIP writes and metrics
+                                currentStore.endActiveSession(false, true);
+
+                                // 2. Hard Clear just in case
+                                set({ activeSession: null });
+                            }
+                        });
+                        unsubscribeRTDB = () => cleanRTDB();
+                    }
+
+                    // Combined Cleanup
+                    const cleanup = () => {
+                        unsubscribeFirestore();
+                        unsubscribeRTDB();
+                    };
+
+                    return { unsubscribeSnapshot: cleanup };
                 });
             },
 

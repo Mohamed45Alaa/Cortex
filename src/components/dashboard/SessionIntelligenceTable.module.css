@@ -344,3 +344,100 @@
     border: 2px dashed rgba(255, 255, 255, 0.1);
     font-weight: 500;
 }
+
+/* --- MOBILE ADAPTIVE CARD SYSTEM --- */
+@media (max-width: 768px) {
+    .metricsHeader {
+        gap: 12px;
+        padding-bottom: 0px;
+        border-bottom: none;
+        flex-wrap: wrap;
+    }
+
+    .metricBlock {
+        flex: 1 1 30%;
+        /* 3-up on mobile? */
+        min-width: 80px;
+    }
+
+    .metricValue {
+        font-size: 1.5rem;
+    }
+
+    /* Table -> Cards */
+    .tableHeader {
+        display: none;
+    }
+
+    .tableRow {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: auto;
+        padding: 16px;
+        gap: 12px;
+        align-items: stretch;
+        background: #1e293b;
+        /* Card bg */
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        margin-bottom: 12px;
+    }
+
+    .tableRow:last-child {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Layout within Card */
+    .colName {
+        font-size: 1.1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding-bottom: 8px;
+        width: 100%;
+    }
+
+    /* Metadata Row */
+    .colType,
+    .colDuration,
+    .colDifficulty,
+    .colEffort,
+    .colStatus {
+        display: flex;
+        justify-content: space-between;
+        /* Label - Value style if we added labels, but here we just flow */
+        width: auto;
+        display: inline-flex;
+        margin-right: 12px;
+    }
+
+    /* Specific overrides for flex ordering/wrapping */
+    /* We want a meta-row below name. */
+
+    /* Wrap these into a flexible container? 
+       Since HTML structure is flat divs, we can't easily group them without JS.
+       But we can use flex-wrap on the parent .tableRow? 
+       Actually .tableRow is flex-column now. 
+    */
+
+    .colType::before {
+        content: "Type: ";
+        color: #64748B;
+        font-size: 0.8rem;
+        margin-right: 4px;
+    }
+
+    .colDuration::before {
+        content: "Time: ";
+        color: #64748B;
+        font-size: 0.8rem;
+        margin-right: 4px;
+    }
+
+    .colActions {
+        justify-content: flex-end;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        padding-top: 12px;
+        margin-top: 4px;
+        width: 100%;
+    }
+}

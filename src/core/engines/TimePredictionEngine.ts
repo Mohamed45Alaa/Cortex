@@ -1,4 +1,5 @@
 import { Lecture, StudentProfile, SubjectConfig } from '../types';
+import { CognitiveEngine } from './CognitiveEngine';
 
 /**
  * ENGINEERING: TIME PREDICTION ENGINE
@@ -24,31 +25,24 @@ export const TimePredictionEngine = {
         config: SubjectConfig,
         pastSessions: any[] = [] // Typed as any[] to avoid circular dependency, cast to StudySession internally
     ): number => {
-        // 1. Calculate Historical Baseline (The "Personal Constant")
-        // "How long does this student typically take to finish a lecture?"
-        let baselineMinutes = 60; // Default fallback
+        // 1. Determine Effective Student Index for Cognitive Engine
+        // CRITICAL FIX: If totalSessions is 0, explicitly pass 0 to trigger "First-Time Rule" (x2 Base).
+        // Otherwise, use the Lecture's mastery index if available.
+        const effectiveIndex = (profile.totalSessions === 0)
+            ? 0
+            : (lecture.cognitiveIndex ?? null);
 
-        if (pastSessions.length > 0) {
-            const validSessions = pastSessions.filter(s => s.actualDuration > 10); // Ignore noise < 10m
-            if (validSessions.length > 0) {
-                const totalDuration = validSessions.reduce((sum, s) => sum + s.actualDuration, 0);
-                baselineMinutes = totalDuration / validSessions.length;
-            }
-        }
+        // 2. Get Deterministic Base from Cognitive Engine (The "Truth")
+        let projectedMinutes = CognitiveEngine.calculateExpectedStudyTime(
+            lecture.duration,
+            lecture.relativeDifficulty,
+            effectiveIndex
+        );
 
-        // 2. Apply Relative Difficulty (The "Variable Multiplier")
-        // Formula: Expected = Baseline * (Difficulty / 5)
-        // Difficulty 5 = Neutral (1.0x)
-        const difficultyMultiplier = Math.max(0.1, lecture.relativeDifficulty / 5.0);
-
-        let projectedMinutes = baselineMinutes * difficultyMultiplier;
-
-        // If no history, we might fallback to lecture.duration?
-        // Spec says: "BaselineTime represents... standardized lecture". 
-        // If system is new, we rely on lecture.duration as the "proxy baseline".
-        if (pastSessions.length === 0) {
-            projectedMinutes = lecture.duration * difficultyMultiplier;
-        }
+        // 3. Apply Historical Correction (Optional / Advanced)
+        // If we have history, maybe we average the "Cognitive Base" with "Historical Actuals"?
+        // For now, let's trust the Cognitive Engine as the Primary Logic per the Critical Fix prompt.
+        // We will Apply the PHYSICS factors (Strictness, Treatment) to this base.
 
         // 3. Strictness Physics (The Global Variable)
         // See Phase 3 Spec: "Time Dilation" vs "Compression"

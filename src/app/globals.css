@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   /* Medical-Grade Palette */
   --background: #F5F7FA;
@@ -48,11 +50,7 @@
   --border: #334155;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
+/* Base resets handled by Tailwind, keeping specific overrides */
 
 body {
   background-color: var(--background);

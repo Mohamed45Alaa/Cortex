@@ -45,6 +45,7 @@ export interface FlowContext {
     };
     currentSessionId?: string;
     feedbackMessage?: string;
+    predictedDuration?: number; // Added for Session Start Context
 }
 
 export const FlowEngine = {

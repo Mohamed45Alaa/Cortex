@@ -1,19 +1,19 @@
-import type { Metadata } from "next";
-import "./globals.css";
+'use client';
 
-export const metadata: Metadata = {
-    title: "Academic Cognitive Control System",
-    description: "Medical-grade academic self-regulation.",
-};
+import './globals.css';
 
 export default function RootLayout({
     children,
-}: Readonly<{
+}: {
     children: React.ReactNode;
-}>) {
+}) {
+    // STANDARD LAYOUT: Renders children only.
+    // RootGate is now moved to page.tsx
     return (
         <html lang="en">
-            <body>{children}</body>
+            <body className="antialiased overflow-hidden bg-[#020617] text-white">
+                {children}
+            </body>
         </html>
     );
 }

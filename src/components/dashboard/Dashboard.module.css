@@ -93,9 +93,11 @@
 }
 
 .heroSubtext {
-    font-size: 0.8rem;
-    color: #64748B;
-    margin-top: 4px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #94A3B8;
+    margin-top: 6px;
+    letter-spacing: 0.02em;
 }
 
 /* --- OVERVIEW & ADD BUTTON --- */
@@ -260,6 +262,25 @@
     font-size: 1.1rem;
     font-weight: 700;
     color: var(--foreground);
+}
+
+/* UI UTILS */
+.iconBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.iconBtn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
 }
 
 .cardBottom {
@@ -583,5 +604,103 @@
     100% {
         opacity: 0;
         transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* --- MOBILE RESPONSIVE SYSTEM (≤ 768px) --- */
+@media (max-width: 768px) {
+
+    /* 1. Hero Grid: Stack vertically */
+    .heroGrid {
+        grid-template-columns: 1fr;
+        /* Single column stack */
+        gap: 16px;
+        /* Tighter gap */
+        margin-bottom: 24px;
+    }
+
+    /* 2. Compact Hero Card */
+    .heroCard {
+        padding: 16px;
+        /* Reduced from 24px */
+        min-height: auto;
+        /* Allow auto-height */
+        gap: 16px;
+        border-radius: 16px;
+    }
+
+    /* 3. Smaller Icons */
+    .heroIconBox {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+    }
+
+    .heroIconBox svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* 4. Font Scaling */
+    .heroValue {
+        font-size: 1.75rem;
+        /* Reduced from 2.5rem */
+    }
+
+    .heroLabel {
+        font-size: 0.75rem;
+    }
+
+    .heroUnit {
+        font-size: 0.85rem;
+    }
+
+    .heroSubtext {
+        font-size: 0.7rem;
+    }
+
+    /* 5. Subject Grid: Single Column */
+    .subjectGrid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .subjectCard {
+        padding: 20px;
+        min-height: auto;
+    }
+
+    .subjectName {
+        font-size: 1.25rem;
+    }
+
+    /* 6. Header Adjustments (Detail View) */
+    .detailHeader {
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+    }
+
+    .headerStats {
+        border-left: none;
+        padding-left: 0;
+        border-top: 1px solid var(--border);
+        padding-top: 16px;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .statBlock {
+        align-items: flex-start;
+    }
+
+    .subjectTitle {
+        font-size: 1.8rem;
+    }
+
+    /* 7. Hide/Adapt complex elements */
+    .readinessBlock {
+        display: none;
+        /* Hide secondary complexity on mobile */
     }
 }

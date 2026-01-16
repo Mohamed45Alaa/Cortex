@@ -134,7 +134,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                     <span className={styles.readinessLabel}>{t.stability}</span>
                                     <div
                                         className={styles.readinessDot}
-                                        style={{ backgroundColor: subject.metrics.stability > 75 ? '#10B981' : '#F59E0B' }}
+                                        style={{ backgroundColor: (subject.metrics?.stability ?? 0) > 75 ? '#10B981' : '#F59E0B' }}
                                     />
                                 </div>
                             </div>

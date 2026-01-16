@@ -9,9 +9,13 @@ import {
     Sun,
     Moon,
     User, // Added
-    LogOut // Added
+    LogOut, // Added
+    Menu,
+    X,
+    ChevronsLeft,
+    ChevronsRight
 } from 'lucide-react';
-import { useSystemStatus } from '@/core/hooks';
+import { useSystemStatus, useMediaQuery } from '@/core/hooks';
 import { FlowState } from '@/core/engines/FlowEngine';
 import { translations, Language } from '@/core/i18n/translations';
 import { useStore } from '@/store/useStore';
@@ -38,27 +42,45 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
 }) => {
     const systemStatus = useSystemStatus();
     // REMOVED local theme state, now controlled props
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const isMobile = useMediaQuery('(max-width: 768px)');
 
-    const { authState, authModal, openAuthModal, closeAuthModal, logout } = useStore();
+    // Complex Sidebar State
+    // Desktop: true = Expanded, false = Mini Rail
+    // Mobile: true = Open (Overlay), false = Closed (Hidden)
+    const [sidebarLocal, setSidebarLocal] = useState(true);
+
+    // Auto-close sidebar on mobile nav
+    useEffect(() => {
+        if (isMobile) {
+            setSidebarLocal(false); // Default closed on mobile load
+        } else {
+            setSidebarLocal(true); // Default open on desktop
+        }
+    }, [isMobile]);
+
+    const { authState, authModal, openAuthModal, closeAuthModal, logout, isAdminMode, setAdminMode } = useStore();
     const user = authState.user;
     const isGuest = authState.status === 'GUEST';
 
     const t = translations[lang];
 
-    // Theme Effect REMOVED (Handled in Parent)
+    // Toggle Handler
+    const toggleSidebar = () => setSidebarLocal(!sidebarLocal);
 
-    // Simple Toggle Handlers
-    const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+    // Dynamic Classes
+    const sidebarClass = isMobile
+        ? sidebarLocal ? styles.sidebarOpen : styles.sidebarClosed
+        : sidebarLocal ? styles.sidebarOpen : styles.sidebarClosed; // Same naming, CSS handles diffs
 
-    // Status Indicator Color
-    // ...
+    const mainContentClass = isMobile
+        ? styles.mainContent // No margin on mobile
+        : `${styles.mainContent} ${sidebarLocal ? styles.withSidebar : styles.fullWidth}`;
 
     return (
         <div className={styles.layoutContainer}>
 
             {/* MAIN CONTENT AREA */}
-            <main className={`${styles.mainContent} ${sidebarOpen ? styles.withSidebar : styles.fullWidth}`}>
+            <main className={mainContentClass}>
 
                 {/* HEADS UP DISPLAY (Header) */}
                 <header className={styles.header}>
@@ -83,28 +105,51 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                     <div className={styles.userAvatar}>
                                         <span className={styles.avatarInitials}>{user?.name.charAt(0) || 'U'}</span>
                                     </div>
-                                    <div className={styles.userInfo}>
+                                    <div className={styles.userInfo} style={isMobile ? { display: 'none' } : {}}>
                                         <span className={styles.userName}>{user?.name || 'Student'}</span>
                                         <span className={styles.userRole}>{user?.role || 'STUDENT'}</span>
                                     </div>
-                                    <button onClick={logout} className="ml-4 text-slate-500 hover:text-red-400 transition-colors" title="Sign Out">
-                                        <LogOut size={16} />
-                                    </button>
+                                    {!isMobile && (
+                                        <button onClick={logout} className="ml-4 text-slate-500 hover:text-red-400 transition-colors" title="Sign Out">
+                                            <LogOut size={16} />
+                                        </button>
+                                    )}
                                 </>
                             )}
                         </div>
                     </div>
 
+                    {/* CENTERED ADMIN BUTTON */}
+                    {user?.role === 'ADMIN' && !isMobile && (
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                            <button
+                                onClick={() => setAdminMode(true)}
+                                className="text-[10px] font-bold text-indigo-400 border border-indigo-500/30 px-6 py-2 rounded-full hover:bg-indigo-500/10 transition-colors tracking-wide animate-pulse"
+                            >
+                                ENTER ADMIN MODE
+                            </button>
+                        </div>
+                    )}
+
                     <div className={styles.headerRight}>
                         {/* GLOBAL CONTROLS */}
                         <div className={styles.globalControls}>
-                            <button onClick={onToggleLang} className={styles.textBtn}>
-                                {lang === 'en' ? 'EN | AR' : 'AR | EN'}
-                            </button>
+                            {!isMobile && (
+                                <button onClick={onToggleLang} className={styles.textBtn}>
+                                    {lang === 'en' ? 'EN | AR' : 'AR | EN'}
+                                </button>
+                            )}
                             <button onClick={onToggleTheme} className={styles.iconBtn}>
                                 {theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
                             </button>
                         </div>
+
+                        {/* MOBILE HAMBURGER */}
+                        {isMobile && (
+                            <button className={styles.mobileMenuBtn} onClick={toggleSidebar}>
+                                {sidebarLocal ? <X size={24} /> : <Menu size={24} />}
+                            </button>
+                        )}
                     </div>
                 </header>
 
@@ -115,13 +160,20 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                 </div>
             </main>
 
-            {/* CONTROL SIDEBAR (Right Side) */}
-            <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : styles.sidebarClosed}`}>
+            {/* MOBILE BACKDROP */}
+            {isMobile && sidebarLocal && (
+                <div className={styles.backdrop} onClick={() => setSidebarLocal(false)} />
+            )}
 
-                {/* TOGGLE BUTTON */}
-                <button className={styles.sidebarToggle} onClick={toggleSidebar}>
-                    {sidebarOpen ? '›' : '‹'}
-                </button>
+            {/* CONTROL SIDEBAR (Right Side) */}
+            <aside className={`${styles.sidebar} ${sidebarClass}`}>
+
+                {/* DESKTOP TOGGLE BUTTON */}
+                {!isMobile && (
+                    <button className={styles.sidebarToggle} onClick={toggleSidebar}>
+                        {sidebarLocal ? <ChevronsRight size={20} /> : <ChevronsLeft size={20} />}
+                    </button>
+                )}
 
                 {/* LOGO AREA */}
                 <div className={styles.logoArea}>
@@ -139,32 +191,38 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                             icon={<LayoutDashboard size={20} />}
                             label={t.dashboard}
                             active={currentView === 'DASHBOARD_HOME'}
-                            onClick={() => onNavigate('DASHBOARD_HOME')}
+                            onClick={() => { onNavigate('DASHBOARD_HOME'); if (isMobile) setSidebarLocal(false); }}
                         />
                         <NavMethod
                             icon={<BookOpen size={20} />}
                             label={t.sessions}
                             active={currentView === 'DASHBOARD_HISTORY'}
-                            onClick={() => onNavigate('DASHBOARD_HISTORY')}
+                            onClick={() => { onNavigate('DASHBOARD_HISTORY'); if (isMobile) setSidebarLocal(false); }}
                         />
                         <NavMethod
                             icon={<Activity size={20} />}
                             label={t.academic_input}
                             active={currentView === 'DASHBOARD_INPUTS'}
-                            onClick={() => onNavigate('DASHBOARD_INPUTS')}
-                        />
-                        <NavMethod
-                            icon={<Activity size={20} />}
-                            label={t.questions}
-                            active={false}
-                            onClick={() => { }}
+                            onClick={() => { onNavigate('DASHBOARD_INPUTS'); if (isMobile) setSidebarLocal(false); }}
                         />
                         <NavMethod
                             icon={<Settings size={20} />}
                             label={t.settings}
                             active={currentView === 'DASHBOARD_CONFIG'}
-                            onClick={() => onNavigate('DASHBOARD_CONFIG')}
+                            onClick={() => { onNavigate('DASHBOARD_CONFIG'); if (isMobile) setSidebarLocal(false); }}
                         />
+
+                        {/* Mobile Only: Extra Actions in Sidebar */}
+                        {isMobile && !isGuest && (
+                            <button
+                                className={`${styles.navItem}`}
+                                onClick={logout}
+                                style={{ marginTop: 'auto', color: '#EF4444' }}
+                            >
+                                <span className={styles.navIcon}><LogOut size={20} /></span>
+                                <span className={styles.navLabel}>Sign Out</span>
+                            </button>
+                        )}
                     </div>
                 </nav>
             </aside>
@@ -174,6 +232,9 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                 initialMode={authModal.mode}
                 onClose={closeAuthModal}
             />
+
+            {/* ADMIN MODE OVERLAY */}
+            <AdminModeOverlay isOpen={isAdminMode} onClose={() => setAdminMode(false)} />
         </div>
     );
 };
@@ -188,3 +249,39 @@ const NavMethod = ({ icon, label, active, onClick }: any) => (
         {active && <div className={styles.activeIndicator} />}
     </button>
 );
+
+// INTERNAL COMPONENT FOR ANIMATION
+import { AdminLayout } from '@/components/admin/AdminLayout';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const AdminModeOverlay = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div
+                    initial={{ x: '100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 9999, // Above everything
+                        background: '#020617', // Match theme
+                        display: 'flex'
+                    }}
+                >
+                    {/* EXIT BUTTON (Floating - Centered) */}
+                    <button
+                        onClick={onClose}
+                        className="fixed top-4 left-1/2 -translate-x-1/2 z-[10000] text-[10px] font-bold text-indigo-400 border border-indigo-500/30 px-6 py-2 rounded-full hover:bg-indigo-500/10 transition-colors tracking-wide animate-pulse bg-[#020617]"
+                    >
+                        EXIT ADMIN MODE
+                    </button>
+
+                    <AdminLayout />
+                </motion.div>
+            )}
+        </AnimatePresence>
+    );
+};

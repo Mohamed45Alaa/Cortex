@@ -197,6 +197,8 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
                     <span>{t.col_duration}</span>
                     <span>{t.col_diff}</span>
                     <span>{t.col_delta}</span>
+                    <span>Grade</span>
+                    <span>Index</span>
                     <span>{t.col_status}</span>
                     <span>{t.col_actions}</span>
                 </div>
@@ -264,6 +266,16 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
                             {/* DELTA */}
                             <div className={`${styles.colEffort} ${delta.class}`} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 {delta.icon} {delta.text}
+                            </div>
+
+                            {/* GRADE */}
+                            <div className={styles.colDuration}>
+                                {row.original.grade || '—'}
+                            </div>
+
+                            {/* INDEX */}
+                            <div className={styles.colDuration} style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                                {row.original.cognitiveIndex?.toFixed(1) || '—'}
                             </div>
 
                             {/* STATUS (Stacked) */}

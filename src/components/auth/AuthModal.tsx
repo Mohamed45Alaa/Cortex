@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from "react-dom";
 import { useStore } from '@/store/useStore';
+import { isConfigValid } from '@/core/services/firebase';
 import { X, ArrowRight, User, Mail, Lock, ShieldCheck, BookOpen } from 'lucide-react';
 import styles from "./AuthModal.module.css";
 
@@ -27,10 +28,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [mounted, setMounted] = useState(false);
+    const [configValid, setConfigValid] = useState(true);
 
     // Ensure Client-Side Rendering for Portal
     useEffect(() => {
         setMounted(true);
+        setConfigValid(isConfigValid());
         return () => setMounted(false);
     }, []);
 
@@ -43,6 +46,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
 
     const handleGoogleLogin = async () => {
+        if (!configValid) return; // Prevent action if config is invalid
+
         if (onGoogleSignIn) {
             onGoogleSignIn();
             return;
@@ -60,6 +65,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             onClose();
         } else {
             // Show the actual error bubbling up from Service/Firebase
+            // NOTE: AuthService error throwing is caught in store which returns {success: false, error: ...}
             setError(result.error || "Google connection failed. Check console.");
         }
     };
@@ -142,10 +148,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                         {error && <div className={styles.error}>{error}</div>}
 
-                        <button className={styles.googleBtn} onClick={handleGoogleLogin} disabled={isLoading}>
+                        <button
+                            className={styles.googleBtn}
+                            onClick={handleGoogleLogin}
+                            disabled={isLoading || !configValid}
+                            style={{
+                                opacity: !configValid ? 0.5 : 1,
+                                cursor: !configValid ? 'not-allowed' : 'pointer',
+                                filter: !configValid ? 'grayscale(100%)' : 'none'
+                            }}
+                            title={!configValid ? "Firebase API keys are missing" : "Sign in with Google"}
+                        >
                             <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" width={20} height={20} />
-                            {isLoading ? "Connecting..." : "Continue with Google"}
+                            {!configValid ? "Configuration Disabled" : (isLoading ? "Connecting..." : "Continue with Google")}
                         </button>
+
+                        {!configValid && (
+                            <div style={{
+                                color: '#F87171',
+                                fontSize: '0.75rem',
+                                textAlign: 'center',
+                                marginTop: '0.5rem',
+                                padding: '0.5rem',
+                                background: 'rgba(127, 29, 29, 0.2)',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(127, 29, 29, 0.5)'
+                            }}>
+                                System Error: Invalid Firebase Configuration.<br />
+                                Please update .env.local with real keys.
+                            </div>
+                        )}
 
                         <div className={styles.divider}>
                             <span>or</span>

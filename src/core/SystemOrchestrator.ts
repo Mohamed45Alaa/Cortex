@@ -22,35 +22,8 @@ export const SystemOrchestrator = {
      * Enforces: Hard Lockouts, Bankruptcies, and Stability Gates.
      */
     canStartSession: (lectureId: string): { allowed: boolean; reason?: string; overrideRequired?: boolean } => {
-        const state = useStore.getState();
-        const { dailyLoad, profile, lectures, subjects } = state;
-
-        // Guard 1: Cognitive Bankruptcy
-        if (CapacityEngine.isBankrupt(profile.currentCapacity)) {
-            return {
-                allowed: false,
-                reason: "SYSTEM FAILURE: Cognitive Capacity Depleted. Immediate Recovery Required."
-            };
-        }
-
-        // Guard 2: Daily Load Lockout (Risk State)
-        if (CognitiveLoadEngine.isLockedOut(dailyLoad)) {
-            return {
-                allowed: false,
-                reason: "Daily Load Limit Exceeded. System Lockout Active.",
-                overrideRequired: true // Allows "Hero Mode" if user insists (with penalty)
-            };
-        }
-
-        const lecture = lectures.find(l => l.id === lectureId);
-        if (!lecture) return { allowed: false, reason: "Lecture not found in inventory." };
-
-        const subject = subjects.find(s => s.id === lecture.subjectId);
-        if (!subject) return { allowed: false, reason: "Parent Subject configuration missing." };
-
-        // Guard 3: Subject-Specific Thresholds
-        // (Handled internally by LoadEngine logic, but checked here for UI feedback)
-
+        // [PRODUCT CHANGE] 2024-01-XX
+        // Guards removed. Analytics only.
         return { allowed: true };
     },
 
@@ -69,8 +42,9 @@ export const SystemOrchestrator = {
         if (!lecture || !subject) throw new Error("Invalid Session Context");
 
         // 1. Run Prediction Engine
-        // This sets the "Goal" for the user.
-        const predictedDuration = TimePredictionEngine.predictDuration(lecture, profile, subject.config);
+        // [REFACTOR] Single Source of Truth: Use stored expectedDuration.
+        // We DO NOT recalculate this at session start.
+        const predictedDuration = lecture.expectedDuration;
 
         // 2. Return the Contract
         return {
