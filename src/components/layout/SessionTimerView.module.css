@@ -1,0 +1,217 @@
+/* SessionTimerView.module.css */
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    padding: 2rem;
+    background: radial-gradient(circle at center, rgba(16, 185, 129, 0.05) 0%, transparent 70%);
+}
+
+.timerDisplay {
+    font-size: 5rem;
+    font-weight: 700;
+    font-family: 'monospace';
+    color: var(--foreground);
+    margin-bottom: 4rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.05em;
+    text-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    transition: font-size 0.3s ease;
+}
+
+.controls {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+    margin-bottom: 2rem;
+    /* Add spacing below controls */
+}
+
+.expectedTime {
+    margin-top: 1rem;
+    color: #E8ECF3;
+    /* Soft analytical white */
+    font-size: 1.1rem;
+    text-align: center;
+    opacity: 0.9;
+    /* Slightly reduced opacity for calmness */
+
+    /* Softened Neural Violet Aesthetic */
+    text-shadow:
+        0 0 8px rgba(139, 92, 246, 0.5),
+        /* Softer Primary Glow */
+        0 0 20px rgba(139, 92, 246, 0.15);
+    /* Very subtle ambient backing */
+
+    /* Soft fade-in (300-400ms) */
+    animation: fadeInGlow 0.4s ease-out forwards;
+}
+
+@keyframes fadeInGlow {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.controlBtn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: none;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btnStart {
+    background: #10B981;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+}
+
+.btnPause {
+    background: #F59E0B;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+}
+
+.btnStop {
+    background: #EF4444;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+}
+
+/* --- MOBILE RESPONSIVE --- */
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+
+    .timerDisplay {
+        font-size: 3.5rem;
+        /* Smaller timer */
+        margin-bottom: 2rem;
+    }
+
+    .controls {
+        gap: 16px;
+        /* Tighter controls */
+    }
+
+    .controlBtn {
+        width: 60px;
+        /* Smaller buttons */
+        height: 60px;
+    }
+
+    .controlBtn svg {
+        width: 24px;
+        height: 24px;
+    }
+}
+
+/* --- SESSION REPORT OVERLAY --- */
+.reportCard {
+    background: rgba(17, 24, 39, 0.95);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 20px;
+    padding: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    animation: fadeInGlow 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    min-width: 320px;
+}
+
+.reportHeader {
+    color: #9CA3AF;
+    letter-spacing: 0.1em;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.gradeDisplay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.gradeLabel {
+    color: #A78BFA;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+.gradeValue {
+    font-size: 5rem;
+    line-height: 1;
+    font-weight: 800;
+    background: linear-gradient(135deg, #A78BFA 0%, #4FD1FF 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.3));
+}
+
+.indexDisplay {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.indexLabel {
+    color: #6B7280;
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.indexValue {
+    color: #E5E7EB;
+    font-family: 'monospace';
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.statsRow {
+    display: flex;
+    gap: 2rem;
+    color: #6B7280;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+.dismissBtn {
+    margin-top: 1rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #9CA3AF;
+    padding: 0.8rem 2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.dismissBtn:hover {
+    border-color: #A78BFA;
+    color: #F3F4F6;
+    background: rgba(139, 92, 246, 0.1);
+}

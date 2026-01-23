@@ -1,0 +1,274 @@
+.container {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    color: var(--text-primary);
+}
+
+.header {
+    margin-bottom: 3rem;
+    border-left: 4px solid var(--accent-primary);
+    padding-left: 1.5rem;
+}
+
+.title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(90deg, #fff, #94a3b8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+    opacity: 0.6;
+    font-size: 1rem;
+}
+
+/* TIMELINE */
+.timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.emptyState {
+    text-align: center;
+    padding: 5rem;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* WEEK BLOCK */
+.weekBlock {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.weekBlock:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.weekBlock.expanded {
+    background: rgba(15, 23, 42, 0.9);
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.weekHeader {
+    padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.weekInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.weekLabel {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.weekIndex {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.currentBadge {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 700;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.dateRange {
+    display: flex;
+    align-items: center;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: monospace;
+}
+
+.weekStatus {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.pendingCount {
+    font-size: 0.8rem;
+    color: #fb7185;
+    /* Rose */
+    background: rgba(251, 113, 133, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+/* TABLE */
+.weekContent {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0;
+}
+
+.historyTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.historyTable th {
+    text-align: left;
+    padding: 1rem 1.5rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.historyTable td {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.recordRow:last-child td {
+    border-bottom: none;
+}
+
+.recordRow:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.dayCell {
+    min-width: 120px;
+}
+
+.dayName {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.fullDate {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.subjectBadge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 0.8rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* --- MOBILE ADAPTIVE HISTORY --- */
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+
+    .title {
+        font-size: 1.5rem;
+    }
+
+    /* Stack Week Header */
+    .weekHeader {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .weekStatus {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    /* Table -> Cards Transformation */
+    .historyTable,
+    .historyTable tbody,
+    .historyTable tr,
+    .historyTable td {
+        display: block;
+        width: 100%;
+    }
+
+    .historyTable thead {
+        display: none;
+        /* Hide headers */
+    }
+
+    .recordRow {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        margin-bottom: 12px;
+        padding: 12px;
+    }
+
+    .historyTable td {
+        padding: 4px 0;
+        border-bottom: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    /* Add Pseudo-labels for context */
+    .historyTable td:nth-of-type(2)::before {
+        content: "Subject";
+        opacity: 0.5;
+        font-size: 0.8rem;
+    }
+
+    .historyTable td:nth-of-type(4)::before {
+        content: "Duration";
+        opacity: 0.5;
+        font-size: 0.8rem;
+    }
+
+    .historyTable td:nth-of-type(5)::before {
+        content: "Status";
+        opacity: 0.5;
+        font-size: 0.8rem;
+    }
+
+    /* Specific Tweaks */
+    .dayCell {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+        padding-bottom: 8px !important;
+        margin-bottom: 8px;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        display: flex;
+    }
+
+    /* Subject Badge alignment */
+    .subjectBadge {
+        margin-left: auto;
+    }
+}

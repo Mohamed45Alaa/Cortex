@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+:root {
+  /* Medical-Grade Palette */
+  --background: #F5F7FA;
+  /* Clinical Off-White */
+  --surface: #FFFFFF;
+  /* Pure White */
+  --foreground: #0F172A;
+  /* Dark Slate */
+  --muted: #64748B;
+  /* Slate Gray */
+
+  --primary: #2563EB;
+  /* Professional Blue */
+  --primary-foreground: #FFFFFF;
+
+  --safe: #10B981;
+  /* Green */
+  --warning: #F59E0B;
+  /* Amber */
+  --risk: #EF4444;
+  /* Crimson */
+  --risk-muted: #FECACA;
+
+  --border: #E2E8F0;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+[data-theme='dark'] {
+  --background: #0F172A;
+  /* Deep Slate */
+  --surface: #1E293B;
+  /* Darker Slate Surface */
+  --foreground: #F8FAFC;
+  /* Off-White Text */
+  --muted: #94A3B8;
+  /* Muted Gray */
+
+  --primary: #3B82F6;
+  /* Bright Blue */
+  --primary-foreground: #FFFFFF;
+
+  --safe: #10B981;
+  --warning: #F59E0B;
+  --risk: #EF4444;
+  --risk-muted: #7F1D1D;
+
+  --border: #334155;
+}
+
+/* Base resets handled by Tailwind, keeping specific overrides */
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+  overflow: hidden;
+  /* App-like feel */
+}
+
+/* PREMIUM SCROLLBAR */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 17, 26, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.3);
+  border-radius: 99px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.8);
+  box-shadow: 0 0 10px rgba(124, 58, 237, 0.5);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}

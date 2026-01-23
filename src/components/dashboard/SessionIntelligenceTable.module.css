@@ -1,0 +1,443 @@
+.container {
+    background: #12141A;
+    /* Better contrast base */
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* --- HEADER METRICS --- */
+.metricsHeader {
+    display: flex;
+    justify-content: space-around;
+    padding-bottom: 24px;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+    /* Thicker separator */
+}
+
+.metricBlock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.metricLabel {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #94A3B8;
+    /* Lighter text */
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.metricValue {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #FFFFFF;
+    /* Pure White */
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.metricUnit {
+    font-size: 1rem;
+    color: #64748B;
+    font-weight: 600;
+    margin-left: 4px;
+}
+
+/* --- TABLE LAYOUT --- */
+/* --- TABLE LAYOUT --- */
+.tableGrid {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.tableHeader {
+    display: grid;
+    /* ItemName, Type, Duration, Diff, Delta, Status, Actions */
+    /* FIXED: Matches tableRow exactly */
+    grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr 1.2fr 120px;
+    padding: 16px 24px;
+    /* Increased padding */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px 8px 0 0;
+
+    color: #64748B;
+    /* Muted header */
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    align-items: center;
+}
+
+/* Center header items except Name (first child) */
+.tableHeader>span:not(:first-child) {
+    text-align: center;
+    justify-content: center;
+    display: flex;
+}
+
+.tableRow {
+    display: grid;
+    /* FIXED: Matches tableHeader exactly */
+    grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr 1.2fr 120px;
+    padding: 20px 24px;
+    /* Taller rows for vertical rhythm */
+    align-items: center;
+    /* Vertical Center */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: #13151b;
+    transition: all 0.2s ease;
+    cursor: default;
+    min-height: 80px;
+    /* Enforce height consistency */
+}
+
+.tableRow:last-child {
+    border-bottom: none;
+}
+
+.tableRow:hover {
+    background: #1E293B;
+    /* Much clearer hover state */
+}
+
+/* --- HIERARCHY INDENTATION --- */
+.parentRow {
+    background: #171920;
+    /* Slightly distinct parent bg */
+}
+
+/* .childRow intentionally left empty or removed */
+.childRow {
+    min-height: 48px;
+    padding: 8px 24px;
+    background: rgba(245, 158, 11, 0.05);
+    /* Yellow Tint */
+    border-left: 3px solid #F59E0B;
+    /* Yellow Bar */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* --- COLUMNS --- */
+
+/* Shared center alignment for data columns */
+.colType,
+.colDuration,
+.colDifficulty,
+.colEffort,
+.colStatus {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.colActions {
+    display: flex;
+    justify-content: center;
+    /* STRICT CENTER */
+    align-items: center;
+    gap: 16px;
+}
+
+/* --- STACKED CONTENT (User Requirement) --- */
+.stackCell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0px;
+    /* Reduced gap since labels are gone (or minimal) */
+}
+
+.stackValue {
+    line-height: 1;
+}
+
+.stackLabel {
+    font-size: 0.6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #475569;
+    /* Muted label */
+    letter-spacing: 0.05em;
+}
+
+/* Specific Tweak for Diff Badge in Stack */
+.diffBadge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 800;
+    min-width: 40px;
+    /* Fixed width for alignment */
+    text-align: center;
+    display: flex;
+    justify-content: center;
+}
+
+.tableRow:last-child {
+    border-bottom: none;
+}
+
+.tableRow:hover {
+    background: #1E293B;
+    /* Much clearer hover state */
+}
+
+/* --- HIERARCHY INDENTATION --- */
+.parentRow {
+    background: #171920;
+    /* Slightly distinct parent bg */
+}
+
+/* .childRow intentionally left empty or removed */
+
+/* --- COLUMNS --- */
+.colName {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #F8FAFC;
+    font-weight: 700;
+    /* Authority */
+    font-size: 0.95rem;
+}
+
+/* Indent marker for children */
+.treeLine {
+    width: 20px;
+    height: 24px;
+    border-left: 2px solid #334155;
+    border-bottom: 2px solid #334155;
+    margin-left: 12px;
+    margin-right: 12px;
+    border-bottom-left-radius: 8px;
+    opacity: 0.5;
+    display: inline-block;
+}
+
+
+
+
+
+
+
+.diffBadge {
+    padding: 6px 12px;
+    border-radius: 6px;
+    /* Squarer, more tech */
+    font-size: 0.85rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 60px;
+    justify-content: center;
+}
+
+.diffLow {
+    background: #064E3B;
+    color: #34D399;
+    border: 1px solid #059669;
+}
+
+.diffMed {
+    background: #451A03;
+    color: #FBBF24;
+    border: 1px solid #B45309;
+}
+
+.diffHigh {
+    background: #450A0A;
+    color: #F87171;
+    border: 1px solid #DC2626;
+}
+
+
+
+.effortHarder {
+    color: #F59E0B;
+}
+
+.effortEasier {
+    color: #10B981;
+}
+
+.effortNeutral {
+    color: #64748B;
+}
+
+
+
+.statusPill {
+    padding: 6px 12px;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: center;
+    min-width: 90px;
+}
+
+.statusCompleted {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34D399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.statusInterrupted {
+    background: rgba(245, 158, 11, 0.2);
+    color: #FBBF24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.statusProgress {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60A5FA;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.statusPending {
+    background: rgba(148, 163, 184, 0.1);
+    color: #94A3B8;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.colActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.actionIcon {
+    cursor: pointer;
+    color: #475569;
+    transition: all 0.2s;
+}
+
+.actionIcon:hover {
+    color: #F8FAFC;
+    transform: scale(1.1);
+}
+
+.emptyState {
+    padding: 60px;
+    text-align: center;
+    color: #94A3B8;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    font-weight: 500;
+}
+
+/* --- MOBILE ADAPTIVE CARD SYSTEM --- */
+@media (max-width: 768px) {
+    .metricsHeader {
+        gap: 12px;
+        padding-bottom: 0px;
+        border-bottom: none;
+        flex-wrap: wrap;
+    }
+
+    .metricBlock {
+        flex: 1 1 30%;
+        /* 3-up on mobile? */
+        min-width: 80px;
+    }
+
+    .metricValue {
+        font-size: 1.5rem;
+    }
+
+    /* Table -> Cards */
+    .tableHeader {
+        display: none;
+    }
+
+    .tableRow {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: auto;
+        padding: 16px;
+        gap: 12px;
+        align-items: stretch;
+        background: #1e293b;
+        /* Card bg */
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        margin-bottom: 12px;
+    }
+
+    .tableRow:last-child {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Layout within Card */
+    .colName {
+        font-size: 1.1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding-bottom: 8px;
+        width: 100%;
+    }
+
+    /* Metadata Row */
+    .colType,
+    .colDuration,
+    .colDifficulty,
+    .colEffort,
+    .colStatus {
+        display: flex;
+        justify-content: space-between;
+        /* Label - Value style if we added labels, but here we just flow */
+        width: auto;
+        display: inline-flex;
+        margin-right: 12px;
+    }
+
+    /* Specific overrides for flex ordering/wrapping */
+    /* We want a meta-row below name. */
+
+    /* Wrap these into a flexible container? 
+       Since HTML structure is flat divs, we can't easily group them without JS.
+       But we can use flex-wrap on the parent .tableRow? 
+       Actually .tableRow is flex-column now. 
+    */
+
+    .colType::before {
+        content: "Type: ";
+        color: #64748B;
+        font-size: 0.8rem;
+        margin-right: 4px;
+    }
+
+    .colDuration::before {
+        content: "Time: ";
+        color: #64748B;
+        font-size: 0.8rem;
+        margin-right: 4px;
+    }
+
+    .colActions {
+        justify-content: flex-end;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        padding-top: 12px;
+        margin-top: 4px;
+        width: 100%;
+    }
+}

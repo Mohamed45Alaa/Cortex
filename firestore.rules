@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- HELPER FUNCTIONS ---
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ADMIN VERIFICATION (ROBUST)
+    // Checks for 'ADMIN', 'Admin', or 'admin' to handle casing inconsistencies in raw data.
+    function isAdmin() {
+      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)/profile/main);
+      let role = profile.data.role;
+      return isAuthenticated() && (role == 'ADMIN' || role == 'Admin' || role == 'admin');
+    }
+
+    // --- COLLECTION GROUP QUERIES ---
+
+    // Enables Admin Dashboard to list all students
+    match /{path=**}/profile/{docId} {
+      allow read: if isAdmin();
+    }
+
+    // --- USER DATA HIERARCHY ---
+
+    match /users/{uid} {
+      
+      // 4) PROFILE (READ-ONLY FOR ADMIN)
+      match /profile/{docId} {
+        allow read: if isAdmin() || request.auth.uid == uid;
+        allow write: if isAdmin() || request.auth.uid == uid; // Allow Admin to heal/update
+      }
+
+      // 1) PRESENCE
+      match /presence/{docId} {
+        allow read: if isAdmin() || request.auth.uid == uid;
+        allow write: if request.auth.uid == uid;
+      }
+
+      // 2) ACTIVITY
+      match /activity/{docId} {
+        allow read: if isAdmin() || request.auth.uid == uid;
+        allow write: if request.auth.uid == uid;
+      }
+
+      // 3) SESSIONS (CRITICAL)
+      match /sessions/{sessionId} {
+        allow read: if isAdmin() || request.auth.uid == uid;
+        allow write: if request.auth.uid == uid;
+      }
+
+      // KEEPING THIS AS IT IS ACTIVELY USED BY CODE
+      match /study/{docId} {
+        allow read: if isAdmin() || request.auth.uid == uid;
+        allow write: if request.auth.uid == uid;
+      }
+
+      match /subjects/{subjectId} {
+        allow read, write: if request.auth.uid == uid;
+        allow read: if isAdmin();
+        
+         match /{nested=**} {
+            allow read, write: if request.auth.uid == uid;
+            allow read: if isAdmin();
+        }
+      }
+
+      match /stateSnapshot/{docId} {
+        allow read, write: if request.auth.uid == uid;
+        allow read: if isAdmin();
+      }
+
+      match /cognitiveIndex/{docId} {
+        allow read, write: if request.auth.uid == uid;
+        allow read: if isAdmin();
+      }
+    }
+
+    // LIST PRESENCE (For Admin Dashboard "Online Now")
+    match /{path=**}/presence/{docId} {
+      allow read: if isAdmin();
+    }
+
+    // LIST ACTIVITY (For Admin Idle/Background detection)
+    match /{path=**}/activity/{docId} {
+      allow read: if isAdmin();
+    }
+
+    // LIST STUDY STATE (For Admin Dashboard)
+    match /{path=**}/study/{docId} {
+      allow read: if isAdmin();
+    }
+  }
+}
