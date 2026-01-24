@@ -4,7 +4,6 @@ import {
     Clock,
     Brain,
     Zap,
-    ArrowUpRight,
     Play
 } from 'lucide-react';
 import { useStudentProfile, useDailyLoad, useSubjectList } from '@/core/hooks';
@@ -98,10 +97,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             <span className={styles.heroValue}>{profile.totalSessions}</span>
                             <span className={styles.heroUnit}>{t.cycles}</span>
                         </div>
-                        <div className={styles.trendIndicator}>
-                            <ArrowUpRight size={16} color="#10B981" />
-                            <span>+12% vs Avg</span>
-                        </div>
+
                     </div>
                 </div>
             </section>

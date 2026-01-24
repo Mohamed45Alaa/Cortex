@@ -1,0 +1,203 @@
+/* [project]/src/components/layout/SessionTimerView.module.css [app-client] (css) */
+.SessionTimerView-module__7K-8ea__container {
+  background: radial-gradient(circle, #10b9810d 0%, #0000 70%);
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 2rem;
+  display: flex;
+}
+
+.SessionTimerView-module__7K-8ea__timerDisplay {
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .05em;
+  text-shadow: 0 4px 30px #0000004d;
+  margin-bottom: 4rem;
+  font-family: "monospace";
+  font-size: 5rem;
+  font-weight: 700;
+  transition: font-size .3s;
+}
+
+.SessionTimerView-module__7K-8ea__controls {
+  align-items: center;
+  gap: 32px;
+  margin-bottom: 2rem;
+  display: flex;
+}
+
+.SessionTimerView-module__7K-8ea__expectedTime {
+  color: #e8ecf3;
+  text-align: center;
+  opacity: .9;
+  text-shadow: 0 0 8px #8b5cf680, 0 0 20px #8b5cf626;
+  margin-top: 1rem;
+  font-size: 1.1rem;
+  animation: .4s ease-out forwards SessionTimerView-module__7K-8ea__fadeInGlow;
+}
+
+@keyframes SessionTimerView-module__7K-8ea__fadeInGlow {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.SessionTimerView-module__7K-8ea__controlBtn {
+  color: #fff;
+  cursor: pointer;
+  border: none;
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  width: 80px;
+  height: 80px;
+  transition: all .2s cubic-bezier(.4, 0, .2, 1);
+  display: flex;
+}
+
+.SessionTimerView-module__7K-8ea__btnStart {
+  background: #10b981;
+  box-shadow: 0 0 20px #10b98166;
+}
+
+.SessionTimerView-module__7K-8ea__btnPause {
+  background: #f59e0b;
+  box-shadow: 0 0 20px #f59e0b66;
+}
+
+.SessionTimerView-module__7K-8ea__btnStop {
+  background: #ef4444;
+  box-shadow: 0 0 20px #ef444466;
+}
+
+@media (max-width: 768px) {
+  .SessionTimerView-module__7K-8ea__container {
+    padding: 1rem;
+  }
+
+  .SessionTimerView-module__7K-8ea__timerDisplay {
+    margin-bottom: 2rem;
+    font-size: 3.5rem;
+  }
+
+  .SessionTimerView-module__7K-8ea__controls {
+    gap: 16px;
+  }
+
+  .SessionTimerView-module__7K-8ea__controlBtn {
+    width: 60px;
+    height: 60px;
+  }
+
+  .SessionTimerView-module__7K-8ea__controlBtn svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+.SessionTimerView-module__7K-8ea__reportCard {
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  background: #111827f2;
+  border: 1px solid #8b5cf633;
+  border-radius: 20px;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  min-width: 320px;
+  padding: 2.5rem;
+  animation: .5s cubic-bezier(.16, 1, .3, 1) SessionTimerView-module__7K-8ea__fadeInGlow;
+  display: flex;
+  box-shadow: 0 20px 50px #00000080;
+}
+
+.SessionTimerView-module__7K-8ea__reportHeader {
+  color: #9ca3af;
+  letter-spacing: .1em;
+  font-size: .85rem;
+  font-weight: 600;
+}
+
+.SessionTimerView-module__7K-8ea__gradeDisplay {
+  flex-direction: column;
+  align-items: center;
+  display: flex;
+}
+
+.SessionTimerView-module__7K-8ea__gradeLabel {
+  color: #a78bfa;
+  letter-spacing: .05em;
+  margin-bottom: .5rem;
+  font-size: .8rem;
+}
+
+.SessionTimerView-module__7K-8ea__gradeValue {
+  background: linear-gradient(135deg, #a78bfa 0%, #4fd1ff 100%);
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 20px #8b5cf64d);
+  -webkit-background-clip: text;
+  background-clip: text;
+  font-size: 5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.SessionTimerView-module__7K-8ea__indexDisplay {
+  background: #ffffff08;
+  border-radius: 12px;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 1rem 2rem;
+  display: flex;
+}
+
+.SessionTimerView-module__7K-8ea__indexLabel {
+  color: #6b7280;
+  margin-bottom: .25rem;
+  font-size: .75rem;
+}
+
+.SessionTimerView-module__7K-8ea__indexValue {
+  color: #e5e7eb;
+  font-family: "monospace";
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.SessionTimerView-module__7K-8ea__statsRow {
+  color: #6b7280;
+  gap: 2rem;
+  margin-top: .5rem;
+  font-size: .9rem;
+  display: flex;
+}
+
+.SessionTimerView-module__7K-8ea__dismissBtn {
+  color: #9ca3af;
+  cursor: pointer;
+  background: none;
+  border: 1px solid #ffffff1a;
+  border-radius: 8px;
+  margin-top: 1rem;
+  padding: .8rem 2rem;
+  font-size: .9rem;
+  transition: all .2s;
+}
+
+.SessionTimerView-module__7K-8ea__dismissBtn:hover {
+  color: #f3f4f6;
+  background: #8b5cf61a;
+  border-color: #a78bfa;
+}
+
+/*# sourceMappingURL=src_components_layout_SessionTimerView_module_css_bad6b30c._.single.css.map*/

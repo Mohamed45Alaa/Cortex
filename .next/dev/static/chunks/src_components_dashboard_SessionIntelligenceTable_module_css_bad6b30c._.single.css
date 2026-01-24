@@ -1,0 +1,358 @@
+/* [project]/src/components/dashboard/SessionIntelligenceTable.module.css [app-client] (css) */
+.SessionIntelligenceTable-module__8cpmBa__container {
+  background: #12141a;
+  border: 1px solid #ffffff1f;
+  border-radius: 12px;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  display: flex;
+  box-shadow: 0 4px 20px #0000004d;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__metricsHeader {
+  border-bottom: 2px solid #ffffff14;
+  justify-content: space-around;
+  padding-bottom: 24px;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__metricBlock {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__metricLabel {
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  align-items: center;
+  gap: 8px;
+  font-size: .75rem;
+  font-weight: 700;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__metricValue {
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__metricUnit {
+  color: #64748b;
+  margin-left: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__tableGrid {
+  flex-direction: column;
+  width: 100%;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__tableHeader {
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  background: #ffffff08;
+  border-bottom: 1px solid #ffffff1a;
+  border-radius: 8px 8px 0 0;
+  grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr 1.2fr 120px;
+  align-items: center;
+  padding: 16px 24px;
+  font-size: .7rem;
+  font-weight: 800;
+  display: grid;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__tableHeader > span:not(:first-child) {
+  text-align: center;
+  justify-content: center;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__tableRow {
+  cursor: default;
+  background: #13151b;
+  border-bottom: 1px solid #ffffff0d;
+  grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr 1.2fr 120px;
+  align-items: center;
+  min-height: 80px;
+  padding: 20px 24px;
+  transition: all .2s;
+  display: grid;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__childRow {
+  background: #f59e0b0d;
+  border-bottom: 1px solid #ffffff08;
+  border-left: 3px solid #f59e0b;
+  min-height: 48px;
+  padding: 8px 24px;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__colType, .SessionIntelligenceTable-module__8cpmBa__colDuration, .SessionIntelligenceTable-module__8cpmBa__colDifficulty, .SessionIntelligenceTable-module__8cpmBa__colEffort, .SessionIntelligenceTable-module__8cpmBa__colStatus {
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__colActions {
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__stackCell {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__stackValue {
+  line-height: 1;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__stackLabel {
+  text-transform: uppercase;
+  color: #475569;
+  letter-spacing: .05em;
+  font-size: .6rem;
+  font-weight: 800;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__diffBadge {
+  text-align: center;
+  border-radius: 4px;
+  justify-content: center;
+  min-width: 40px;
+  padding: 4px 10px;
+  font-size: .9rem;
+  font-weight: 800;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__tableRow:last-child {
+  border-bottom: none;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__tableRow:hover {
+  background: #1e293b;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__parentRow {
+  background: #171920;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__colName {
+  color: #f8fafc;
+  align-items: center;
+  gap: 12px;
+  font-size: .95rem;
+  font-weight: 700;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__treeLine {
+  opacity: .5;
+  border-bottom: 2px solid #334155;
+  border-left: 2px solid #334155;
+  border-bottom-left-radius: 8px;
+  width: 20px;
+  height: 24px;
+  margin-left: 12px;
+  margin-right: 12px;
+  display: inline-block;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__diffBadge {
+  border-radius: 6px;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-width: 60px;
+  padding: 6px 12px;
+  font-size: .85rem;
+  font-weight: 700;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__diffLow {
+  color: #34d399;
+  background: #064e3b;
+  border: 1px solid #059669;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__diffMed {
+  color: #fbbf24;
+  background: #451a03;
+  border: 1px solid #b45309;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__diffHigh {
+  color: #f87171;
+  background: #450a0a;
+  border: 1px solid #dc2626;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__effortHarder {
+  color: #f59e0b;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__effortEasier {
+  color: #10b981;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__effortNeutral {
+  color: #64748b;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__statusPill {
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  text-align: center;
+  border-radius: 99px;
+  min-width: 90px;
+  padding: 6px 12px;
+  font-size: .7rem;
+  font-weight: 800;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__statusCompleted {
+  color: #34d399;
+  background: #10b98133;
+  border: 1px solid #10b9814d;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__statusInterrupted {
+  color: #fbbf24;
+  background: #f59e0b33;
+  border: 1px solid #f59e0b4d;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__statusProgress {
+  color: #60a5fa;
+  background: #3b82f633;
+  border: 1px solid #3b82f64d;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__statusPending {
+  color: #94a3b8;
+  background: #94a3b81a;
+  border: 1px solid #94a3b833;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__colActions {
+  justify-content: flex-end;
+  gap: 12px;
+  display: flex;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__actionIcon {
+  cursor: pointer;
+  color: #475569;
+  transition: all .2s;
+}
+
+.SessionIntelligenceTable-module__8cpmBa__actionIcon:hover {
+  color: #f8fafc;
+  transform: scale(1.1);
+}
+
+.SessionIntelligenceTable-module__8cpmBa__emptyState {
+  text-align: center;
+  color: #94a3b8;
+  background: #ffffff05;
+  border: 2px dashed #ffffff1a;
+  border-radius: 12px;
+  padding: 60px;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .SessionIntelligenceTable-module__8cpmBa__metricsHeader {
+    border-bottom: none;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-bottom: 0;
+  }
+
+  .SessionIntelligenceTable-module__8cpmBa__metricBlock {
+    flex: 30%;
+    min-width: 80px;
+  }
+
+  .SessionIntelligenceTable-module__8cpmBa__metricValue {
+    font-size: 1.5rem;
+  }
+
+  .SessionIntelligenceTable-module__8cpmBa__tableHeader {
+    display: none;
+  }
+
+  .SessionIntelligenceTable-module__8cpmBa__tableRow {
+    background: #1e293b;
+    border: 1px solid #ffffff0d;
+    border-radius: 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    height: auto;
+    min-height: auto;
+    margin-bottom: 12px;
+    padding: 16px;
+    display: flex;
+  }
+
+  .SessionIntelligenceTable-module__8cpmBa__tableRow:last-child {
+    border-bottom: 1px solid #ffffff0d;
+  }
+
+  .SessionIntelligenceTable-module__8cpmBa__colName {
+    border-bottom: 1px solid #ffffff0d;
+    width: 100%;
+    padding-bottom: 8px;
+    font-size: 1.1rem;
+  }
+
+  .SessionIntelligenceTable-module__8cpmBa__colType, .SessionIntelligenceTable-module__8cpmBa__colDuration, .SessionIntelligenceTable-module__8cpmBa__colDifficulty, .SessionIntelligenceTable-module__8cpmBa__colEffort, .SessionIntelligenceTable-module__8cpmBa__colStatus {
+    justify-content: space-between;
+    width: auto;
+    margin-right: 12px;
+    display: inline-flex;
+  }
+
+  .SessionIntelligenceTable-module__8cpmBa__colType:before {
+    content: "Type: ";
+    color: #64748b;
+    margin-right: 4px;
+    font-size: .8rem;
+  }
+
+  .SessionIntelligenceTable-module__8cpmBa__colDuration:before {
+    content: "Time: ";
+    color: #64748b;
+    margin-right: 4px;
+    font-size: .8rem;
+  }
+
+  .SessionIntelligenceTable-module__8cpmBa__colActions {
+    border-top: 1px solid #ffffff0d;
+    justify-content: flex-end;
+    width: 100%;
+    margin-top: 4px;
+    padding-top: 12px;
+  }
+}
+
+/*# sourceMappingURL=src_components_dashboard_SessionIntelligenceTable_module_css_bad6b30c._.single.css.map*/
