@@ -28,11 +28,11 @@ export const PresenceListener = () => {
         };
         document.addEventListener('visibilitychange', handleVisibility);
 
-        // C. Heartbeat Loop (60s)
-        // STRICT: Only update timestamp, do NOT overwrite state.
+        // C. Heartbeat Loop (30s)
+        // GLOBAL PRESENCE: Unconditionally send heartbeat every 30s
         const heartbeat = setInterval(() => {
             RealtimePresenceService.heartbeat(user.id);
-        }, 60000);
+        }, 30000); // 30s (Half of Server TTL to be safe)
 
         // D. Cleanup (Offline)
         const handleUnload = () => {

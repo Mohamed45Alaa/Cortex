@@ -13,10 +13,12 @@ import {
     Menu,
     X,
     ChevronsLeft,
-    ChevronsRight
+    ChevronsRight,
+    ChevronDown, // New
+    Languages    // New
 } from 'lucide-react';
 import { useSystemStatus, useMediaQuery } from '@/core/hooks';
-import { FlowState } from '@/core/engines/FlowEngine';
+import type { FlowState } from '../../core/engines/FlowEngine';
 import { translations, Language } from '@/core/i18n/translations';
 import { useStore } from '@/store/useStore';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -43,6 +45,9 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
     const systemStatus = useSystemStatus();
     // REMOVED local theme state, now controlled props
     const isMobile = useMediaQuery('(max-width: 768px)');
+
+    // User Menu Dropdown State
+    const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
     // Complex Sidebar State
     // Desktop: true = Expanded, false = Mini Rail
@@ -91,7 +96,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                 <Bell size={20} />
                             </button>
                         </div>
-                        <div className={styles.userSection}>
+                        <div className="relative">
                             {isGuest ? (
                                 <button
                                     onClick={() => openAuthModal('LOGIN')}
@@ -102,17 +107,67 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                 </button>
                             ) : (
                                 <>
-                                    <div className={styles.userAvatar}>
-                                        <span className={styles.avatarInitials}>{user?.name.charAt(0) || 'U'}</span>
-                                    </div>
-                                    <div className={styles.userInfo} style={isMobile ? { display: 'none' } : {}}>
-                                        <span className={styles.userName}>{user?.name || 'Student'}</span>
-                                        <span className={styles.userRole}>{user?.role || 'STUDENT'}</span>
-                                    </div>
-                                    {!isMobile && (
-                                        <button onClick={logout} className="ml-4 text-slate-500 hover:text-red-400 transition-colors" title="Sign Out">
-                                            <LogOut size={16} />
-                                        </button>
+                                    <button
+                                        onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                                        className="flex items-center gap-3 p-1 rounded-full hover:bg-white/5 transition-colors group"
+                                    >
+                                        <div className={styles.userAvatar}>
+                                            <span className={styles.avatarInitials}>{user?.name.charAt(0) || 'U'}</span>
+                                        </div>
+                                        <div className={`flex flex-col items-start ${isMobile ? 'hidden' : 'block'}`}>
+                                            <span className={styles.userName}>{user?.name || 'Student'}</span>
+                                            <span className={styles.userRole}>{user?.role || 'STUDENT'}</span>
+                                        </div>
+                                        {!isMobile && (
+                                            <ChevronDown size={14} className={`text-slate-500 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                                        )}
+                                    </button>
+
+                                    {/* DROPDOWN MENU */}
+                                    {isUserMenuOpen && (
+                                        <>
+                                            {/* Backdrop */}
+                                            <div className="fixed inset-0 z-40" onClick={() => setIsUserMenuOpen(false)} />
+
+                                            {/* Menu */}
+                                            <div className="absolute top-full right-0 mt-2 w-56 bg-[#0F172A] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+
+                                                {/* Header (Mobile Only) */}
+                                                {isMobile && (
+                                                    <div className="px-4 py-3 border-b border-white/5 bg-slate-900/50">
+                                                        <p className="text-sm font-semibold text-white">{user?.name}</p>
+                                                        <p className="text-xs text-slate-500 capitalize">{user?.role?.toLowerCase()}</p>
+                                                    </div>
+                                                )}
+
+                                                <button
+                                                    onClick={() => { onNavigate('DASHBOARD_ACCOUNT'); setIsUserMenuOpen(false); }}
+                                                    className="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors"
+                                                >
+                                                    <User size={16} className="text-indigo-400" />
+                                                    {t.settings || "Account Information"}
+                                                    {/* Fallback string if translation missing, though key is 'settings' in sidebar usually, maybe Add specific key? using settings for now */}
+                                                </button>
+
+                                                <button
+                                                    onClick={() => { onToggleLang(); setIsUserMenuOpen(false); }}
+                                                    className="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors"
+                                                >
+                                                    <Languages size={16} className="text-slate-400" />
+                                                    {lang === 'en' ? 'Switch to Arabic' : 'Switch to English'}
+                                                </button>
+
+                                                <div className="h-px bg-white/5 my-1" />
+
+                                                <button
+                                                    onClick={() => { logout(); setIsUserMenuOpen(false); }}
+                                                    className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-3 transition-colors"
+                                                >
+                                                    <LogOut size={16} />
+                                                    Sign Out
+                                                </button>
+                                            </div>
+                                        </>
                                     )}
                                 </>
                             )}
@@ -120,7 +175,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                     </div>
 
                     {/* CENTERED ADMIN BUTTON */}
-                    {user?.role === 'ADMIN' && !isMobile && (
+                    {user?.role === 'ADMIN' && (
                         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                             <button
                                 onClick={() => setAdminMode(true)}
@@ -199,17 +254,19 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                             active={currentView === 'DASHBOARD_HISTORY'}
                             onClick={() => { onNavigate('DASHBOARD_HISTORY'); if (isMobile) setSidebarLocal(false); }}
                         />
-                        <NavMethod
-                            icon={<Activity size={20} />}
-                            label={t.academic_input}
-                            active={currentView === 'DASHBOARD_INPUTS'}
-                            onClick={() => { onNavigate('DASHBOARD_INPUTS'); if (isMobile) setSidebarLocal(false); }}
-                        />
+
                         <NavMethod
                             icon={<Settings size={20} />}
                             label={t.settings}
                             active={currentView === 'DASHBOARD_CONFIG'}
                             onClick={() => { onNavigate('DASHBOARD_CONFIG'); if (isMobile) setSidebarLocal(false); }}
+                        />
+                        <NavMethod
+                            /* Phase 2: Identity */
+                            icon={<User size={20} />}
+                            label={lang === 'en' ? 'Identity' : 'الهوية'}
+                            active={currentView === 'DASHBOARD_ACCOUNT'}
+                            onClick={() => { onNavigate('DASHBOARD_ACCOUNT'); if (isMobile) setSidebarLocal(false); }}
                         />
 
                         {/* Mobile Only: Extra Actions in Sidebar */}

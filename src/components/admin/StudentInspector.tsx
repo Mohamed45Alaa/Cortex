@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '@/core/types';
-import { X, Calendar, User, Clock, Shield, CheckCircle2, AlertCircle, AlertTriangle, PlayCircle, StopCircle, RefreshCcw, Trash2 } from 'lucide-react';
+import { X, Calendar, User, Clock, Shield, CheckCircle2, AlertCircle, AlertTriangle, PlayCircle, StopCircle, RefreshCcw, Trash2, School } from 'lucide-react';
 import { AdminService } from '@/core/services/AdminService';
 
 interface StudentInspectorProps {
@@ -152,6 +152,13 @@ export const StudentInspector = ({ student, onClose }: StudentInspectorProps) =>
                             <div className="space-y-4">
                                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Academic Context</h4>
                                 <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-4 rounded-xl bg-slate-900/50 border border-white/5 flex flex-col gap-1 col-span-2">
+                                        <span className="text-slate-500 text-xs flex items-center gap-1"><School size={12} /> University & Faculty</span>
+                                        <div className="flex flex-col">
+                                            <span className="text-slate-200 font-medium">{student.university || "N/A"}</span>
+                                            <span className="text-slate-400 text-xs">{student.faculty || "N/A"}</span>
+                                        </div>
+                                    </div>
                                     <div className="p-4 rounded-xl bg-slate-900/50 border border-white/5 flex flex-col gap-1">
                                         <span className="text-slate-500 text-xs flex items-center gap-1"><Calendar size={12} /> Year</span>
                                         <span className="text-slate-200 font-medium">{student.academicYear || "N/A"}</span>
@@ -262,8 +269,8 @@ export const StudentInspector = ({ student, onClose }: StudentInspectorProps) =>
                                     <button
                                         onClick={handleAction}
                                         className={`flex-1 py-2.5 rounded-lg text-white text-sm font-bold transition-colors ${confirmModal.type === 'DELETE' ? 'bg-rose-600 hover:bg-rose-500' :
-                                                confirmModal.type === 'RESET' ? 'bg-amber-600 hover:bg-amber-500' :
-                                                    'bg-indigo-600 hover:bg-indigo-500'
+                                            confirmModal.type === 'RESET' ? 'bg-amber-600 hover:bg-amber-500' :
+                                                'bg-indigo-600 hover:bg-indigo-500'
                                             }`}
                                     >
                                         {confirmModal.type === 'DELETE' ? 'Delete Permanently' : 'Confirm'}

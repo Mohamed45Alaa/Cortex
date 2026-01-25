@@ -6,7 +6,7 @@ const STATUS_ROOT = (uid: string) => `status/${uid}`;
 const CONNECTED_REF = ".info/connected";
 
 // API HELPER
-async function callSessionApi(action: 'START' | 'END' | 'HEARTBEAT', payload: any = {}) {
+async function callSessionApi(action: 'START' | 'END' | 'HEARTBEAT' | 'PRESENCE', payload: any = {}) {
     const auth = getAuthInstance();
     const user = auth?.currentUser;
     if (!user) return;
@@ -49,12 +49,31 @@ export const RealtimePresenceService = {
         const connectedRef = ref(db, CONNECTED_REF);
         const userStatusRef = ref(db, STATUS_ROOT(uid));
 
-        // 1. Connection Binding (Allowed Client Write? NO. Server-Only Rules applied)
-        // We only LISTEN to the connection state to know if we *should* be sending heartbeats.
+        // 1. Connection Binding & Disconnect Logic
         onValue(connectedRef, (snap) => {
             const isConnected = snap.val() === true;
-            console.log("[Presence] Connection State:", isConnected);
-            // We no longer write to RTDB here.
+
+            if (isConnected) {
+                // A. ON DISCONNECT: Set 'offline' + Timestamp
+                // CRITICAL: We DO NOT touch activeSession. It survives disconnect.
+                // STRICT SCHEMA ENFORCEMENT: Only presence nodes.
+                onDisconnect(userStatusRef).update({
+                    state: 'offline',
+                    lastSeenAt: serverTimestamp(),
+                    // We purposefully do NOT touch inSession or activeSession
+                }).then(() => {
+                    // B. ON CONNECT: Set 'online' (or correct state via heartbeat later)
+                    // We set initial state to Online to ensure dashboard lights up.
+                    const isHidden = document.hidden;
+
+                    // STRICT SCHEMA INITIALIZATION
+                    update(userStatusRef, {
+                        state: isHidden ? 'background' : 'online',
+                        lastSeenAt: serverTimestamp(),
+                        // We preserve existing inSession/currentPage if any
+                    });
+                });
+            }
         });
 
         // 2. LISTEN FOR KILL SWITCH (Admin / Zombie Reaper)
@@ -72,11 +91,15 @@ export const RealtimePresenceService = {
     },
 
     /**
-     * UPDATE VISIBILITY (Disabled - Strict Server Authority)
+     * UPDATE VISIBILITY (API)
      */
     updateState: (uid: string, state: 'online' | 'background') => {
-        // Disabled to prevent Permission Denied errors.
-        // If focus tracking is needed, it must go through API.
+        // Optimistic local state tracking could handle 'heartbeat' payload consistency
+        // But for now, we just fire the immediate change.
+        callSessionApi('PRESENCE', {
+            state,
+            currentPage: window.location.pathname // Tracking Page Context
+        });
     },
 
     /**
@@ -84,8 +107,13 @@ export const RealtimePresenceService = {
      * "I am still here. Am I allowed to be?"
      */
     heartbeat: async (uid: string) => {
-        // Server Verification ONLY regarding "Last Seen"
-        await callSessionApi('HEARTBEAT');
+        // Send current visibility state
+        const isHidden = document.hidden;
+        const state = isHidden ? 'background' : 'online';
+        await callSessionApi('HEARTBEAT', {
+            state,
+            currentPage: window.location.pathname
+        });
     },
 
     /**

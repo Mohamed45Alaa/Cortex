@@ -11,7 +11,7 @@ const mapUser = (fbUser: FirebaseUser): UserProfile => ({
     name: fbUser.displayName || 'Student',
     role: 'STUDENT', // Default to Student
     avatarUrl: fbUser.photoURL || undefined,
-    completed: false, // Default to false until we verify with Firestore
+    completed: undefined, // undefined = Unknown/Loading. Truth comes from Firestore.
     createdAt: fbUser.metadata.creationTime || new Date().toISOString()
 });
 
@@ -102,7 +102,7 @@ export const AuthService = {
 
     // Legacy/Mock methods for Email (optional to keep or remove?)
     // Keeping basic stub for types compatibility or if needed later
-    login: async (email: string, password: string) => { throw new Error("Email Login not implemented in MVP"); },
-    register: async (identity: any, profile: any) => { throw new Error("Email Register not implemented in MVP"); },
+    login: async (email: string, password: string): Promise<AuthContextState> => { throw new Error("Email Login not implemented in MVP"); },
+    register: async (identity: any, profile: any): Promise<AuthContextState> => { throw new Error("Email Register not implemented in MVP"); },
 };
 

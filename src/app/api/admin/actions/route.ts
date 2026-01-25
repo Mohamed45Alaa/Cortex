@@ -37,18 +37,50 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: "Missing Parameters" }, { status: 400 });
         }
 
-        // --- ACTION: DELETE STUDENT ---
+        // --- ACTION: DELETE_STUDENT (NUCLEAR OPTION) ---
         if (action === "DELETE_STUDENT") {
-            const userRef = db.collection('users').doc(uid);
+            console.warn(`[API] 🚨 NUCLEAR DELETE INITIATED FOR: ${uid}`);
 
-            // 1. Recursive Delete (Firestore)
-            await db.recursiveDelete(userRef);
+            // 1. Delete Auth User (Prevents login immediately)
+            try {
+                await auth.deleteUser(uid);
+            } catch (e: any) {
+                console.warn(`[API] Auth user deletion failed (possibly already deleted): ${e.message}`);
+            }
 
-            // 2. Clear Realtime Status
-            await rtdb.ref(`status/${uid}`).set(null);
+            // 2. Kill any Active Session first
+            const statusRef = rtdb.ref(`status/${uid}`);
+            const statusSnap = await statusRef.get();
+            const activeSession = statusSnap.val()?.activeSession;
 
-            // 3. Clear Auth (Optional - per prompt, we preserve Auth for re-registration)
-            // If explicit hard delete of account is needed: await auth.deleteUser(uid);
+            if (activeSession) {
+                await db.collection('activeSessions').doc(activeSession.sessionId).set({
+                    status: 'FORCED_END',
+                    endedBy: 'ADMIN_DELETE',
+                    isValidForMetrics: false,
+                    cognitiveLoad: 0,
+                    endedAt: FieldValue.serverTimestamp()
+                }, { merge: true });
+            }
+
+            // 3. Wipe RTDB
+            await statusRef.remove();
+
+            // 4. Recursive Delete Firestore
+            // Localhost safe: Batch delete known collections.
+            const collections = ['profile', 'sessions', 'activity', 'presence', 'study', 'subjects', 'stateSnapshot', 'cognitiveIndex', 'metrics', 'history', 'dailyLoad'];
+
+            for (const col of collections) {
+                const snap = await db.collection('users').doc(uid).collection(col).get();
+                if (!snap.empty) {
+                    const batch = db.batch();
+                    snap.docs.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                }
+            }
+
+            // Delete the User Root Doc
+            await db.collection('users').doc(uid).delete();
 
             return NextResponse.json({ success: true });
         }
@@ -56,15 +88,17 @@ export async function POST(req: NextRequest) {
         // --- ACTION: RESET STUDENT ---
         else if (action === "RESET_STUDENT") {
             // 1. Delete Study Data Collections (Recursive)
-            const subcols = ['subjects', 'sessions', 'metrics', 'history', 'dailyLoad'];
-            // Execute in parallel
-            await Promise.all(subcols.map(async (colName) => {
+            const subcols = ['subjects', 'sessions', 'metrics', 'history', 'dailyLoad', 'study', 'activity', 'stateSnapshot', 'cognitiveIndex'];
+
+            for (const colName of subcols) {
                 const ref = db.collection(`users/${uid}/${colName}`);
-                const snap = await ref.limit(1).get();
+                const snap = await ref.get();
                 if (!snap.empty) {
-                    await db.recursiveDelete(ref as any);
+                    const batch = db.batch();
+                    snap.docs.forEach(d => batch.delete(d.ref));
+                    await batch.commit();
                 }
-            }));
+            }
 
             // 2. Reset Profile Document (Preserving Identity)
             const profileRef = db.collection(`users/${uid}/profile`);
@@ -77,8 +111,7 @@ export async function POST(req: NextRequest) {
                         learningPhase: 'INIT',
                         currentCapacity: 100,
                         consistencyIndex: 100,
-                        lastSessionDate: null,
-                        metrics: FieldValue.delete() // Remove old metrics map if exists
+                        lastSessionDate: null
                     });
                 });
                 await batch.commit();
@@ -87,89 +120,96 @@ export async function POST(req: NextRequest) {
             // 3. Wipe RTDB Status (Force Offline)
             await rtdb.ref(`status/${uid}`).update({
                 activeSession: null,
-                state: 'offline',
-                lastSeenAt: FieldValue.serverTimestamp() // Sync timestamp
+                state: 'offline', // Force offline
+                lastSeenAt: Date.now()
             });
 
             return NextResponse.json({ success: true });
         }
 
-        // --- ACTION: FORCE END SESSION ---
+        // --- ACTION: FORCE_END_SESSION ---
         else if (action === "FORCE_END_SESSION") {
             // 1. READ RTDB (The Authority)
             const sessionRef = rtdb.ref(`status/${uid}/activeSession`);
             const sessionSnap = await sessionRef.get();
             const activeSession = sessionSnap.val();
 
-            let targetSessionId = activeSession?.sessionId;
-
-            // IDEMPOTENCY: If RTDB is empty, check if we have a provided sessionId in payload? 
-            // Or just assume job is done. But we want to be sure Firestore is clean too.
-
             if (activeSession) {
                 console.log(`[API] Terminating Active Session: ${activeSession.sessionId}`);
 
-                // 2. CALCULATE DURATION (Best Effort)
-                const startTime = activeSession.startedAt;
-                const endTime = Date.now();
-                const durationMinutes = Math.max(0, Math.floor((endTime - startTime) / 60000));
-
-                // 3. PROVISIONAL LOGGING (Firestore)
-                // Use SET with Merge for Idempotency (Update throws if missing)
-                const sessionDocRef = db.collection(`users/${uid}/sessions`).doc(activeSession.sessionId as string);
-
-                await sessionDocRef.set({
-                    id: activeSession.sessionId,
-                    subjectId: activeSession.subjectId,
-                    lectureId: activeSession.lectureId,
-                    startTime: new Date(startTime).toISOString(),
-                    endTime: new Date(endTime).toISOString(),
-                    duration: durationMinutes,
-                    status: 'INTERRUPTED_BY_ADMIN',
-                    createdAt: new Date().toISOString()
-                }, { merge: true });
-
-                // 4. ARCHIVE IN FIRESTORE (New Authority)
+                // 2. ARCHIVE IN FIRESTORE (New Authority)
                 // Use SET with Merge: "Make it forced end, creating if necessary"
                 await db.collection('activeSessions').doc(activeSession.sessionId).set({
-                    uid: uid, // Ensure UID is present for audit
+                    uid: uid,
                     status: 'FORCED_END',
                     endedBy: 'ADMIN',
+                    isValidForMetrics: false, // PROTECTION
+                    cognitiveLoad: 0,
                     endedAt: FieldValue.serverTimestamp()
                 }, { merge: true });
 
             } else {
                 console.warn(`[API] Force End requested but no active session found in RTDB. Ensuring System is Clean.`);
-                // Check if there are ANY running sessions in Firestore for this user? 
-                // For now, if RTDB is clean, we assume the user is "Offline/Idle".
-                // We still emit the Kill Signal just in case the Client is caching something.
             }
 
-            // 5. RESET COGNITIVE LOADS (Mercy Rule)
-            const dailyLoadRef = db.collection(`users/${uid}/dailyLoad`);
-            await db.recursiveDelete(dailyLoadRef);
+            // 3. RESET COGNITIVE LOADS (Mercy Rule) - OPTIONAL
+            // If we want to really ensure no load for today:
+            // const dailyLoadRef = db.collection(`users/${uid}/dailyLoad`);
+            // await db.recursiveDelete(dailyLoadRef);
 
-            const profileRef = db.collection(`users/${uid}/profile`).doc('main');
-            await profileRef.set({
-                currentCapacity: 100,
-                status: 'Safe'
-            }, { merge: true }); // Merge prevents overwrite of name/email
-
-            // 6. AUTHORITATIVE TERMINATION SIGNAL (The Notification)
-            // Always send this, even if we didn't find a session. Clears client UI.
+            // 4. AUTHORITATIVE TERMINATION SIGNAL (The Notification)
             await rtdb.ref(`status/${uid}/sessionTermination`).set({
                 reason: 'ADMIN_FORCE_CLOSE',
                 message: 'Session Force Ended by Administrator',
-                endedAt: FieldValue.serverTimestamp(),
+                endedAt: Date.now(),
                 severity: 'warning'
             });
 
-            // 7. CLEAR RTDB ACTIVE SESSION (The Kill)
+            // 5. CLEAR RTDB ACTIVE SESSION (The Kill)
+            // Do NOT touch Presence State (User might still be browsing)
             await rtdb.ref(`status/${uid}`).update({
                 activeSession: null
             });
 
             return NextResponse.json({ success: true });
+        }
+
+        // --- ACTION: REPAIR_DATA (EMERGENCY SANITIZATION) ---
+        else if (action === "REPAIR_DATA") {
+            console.log(`[API] 🚨 STARTING DATA REPAIR FOR: ${uid}`);
+
+            // PHASE 1: RTDB HARD CLEANUP
+            // "DELETE the following paths completely"
+            await rtdb.ref(`status/${uid}/sessionTermination`).remove();
+            await rtdb.ref(`status/${uid}/forcedEnd`).remove();
+            await rtdb.ref(`status/${uid}/killReason`).remove();
+            await rtdb.ref(`status/${uid}/activeSession`).remove();
+
+            // PHASE 2: FIRESTORE SESSION SANITIZATION
+            // Query: activeSessions where uid == USER and status IN ["RUNNING", "FORCED_END", "ACTIVE"]
+            const sessionsRef = db.collection('activeSessions');
+            const stuckSessionsQuery = sessionsRef
+                .where('uid', '==', uid)
+                .where('status', 'in', ['RUNNING', 'FORCED_END', 'ACTIVE']);
+
+            const snap = await stuckSessionsQuery.get();
+
+            if (!snap.empty) {
+                const batch = db.batch();
+                snap.docs.forEach(doc => {
+                    batch.update(doc.ref, {
+                        status: 'INTERRUPTED',
+                        isValidForMetrics: false, // "set isValidForMetrics = false"
+                        cognitiveLoad: 0,         // "set cognitiveLoad = 0"
+                        endedAt: FieldValue.serverTimestamp() // "set endedAt = now"
+                    });
+                });
+                await batch.commit();
+                console.log(`[API] Repaired ${snap.size} firestore sessions.`);
+            }
+
+            console.log(`[API] Repair Complete for ${uid}`);
+            return NextResponse.json({ success: true, message: "Data Repaired" });
         }
 
         return NextResponse.json({ success: false, error: "Invalid Action" }, { status: 400 });

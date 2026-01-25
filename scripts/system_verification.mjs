@@ -128,27 +128,27 @@ async function runTests() {
     else console.error("❌ End Session: FAIL", res);
 
 
-    // --- TEST B: ZOMBIE TTL ---
-    console.log("\n--- [B] ZOMBIE TTL (Wait 65s) ---");
+    // --- TEST B: ZOMBIE RESURRECTION (Resume after Gap) ---
+    console.log("\n--- [B] ZOMBIE RESURRECTION (Wait 65s) ---");
 
-    // Start Validation Session
+    // Start Session
     await apiCall('/api/session', student.token, {
         action: 'START',
         payload: { lectureId: 'lec_B', subjectId: 'sub_B' }
     });
 
-    process.stdout.write("Waiting 65s for TTL Expiry... ");
+    process.stdout.write("Waiting 65s for Gap (Should Resume)... ");
     await sleep(65000);
     console.log("Done.");
 
-    // Send Heartbeat -> Expect 410
+    // Send Heartbeat -> Expect 200 OK (RESUMED)
     res = await apiCall('/api/session', student.token, { action: 'HEARTBEAT' });
 
-    if (res.status === 410) console.log("✅ Zombie Kill (410): PASS");
-    else console.error(`❌ Zombie Kill: FAIL (Status ${res.status})`, res);
+    if (res.status === 200) console.log("✅ Session Resumed (200): PASS");
+    else console.error(`❌ Session Resumed: FAIL (Status ${res.status})`, res);
 
 
-    // --- TEST C: ADMIN FORCE END ---
+    // --- TEST C: ADMIN FORCE END (Metrics Protection) ---
     console.log("\n--- [C] ADMIN FORCE END ---");
 
     // Start Session
@@ -171,7 +171,6 @@ async function runTests() {
     if (statusSnap.val() === null) console.log("✅ RTDB Cleanup: PASS");
     else console.error("❌ RTDB Cleanup: FAIL (Session still exists)");
 
-
     // --- TEST D: IDEMPOTENCY ---
     console.log("\n--- [D] IDEMPOTENCY (Double Kill) ---");
 
@@ -184,27 +183,44 @@ async function runTests() {
     else console.error("❌ Idempotent Kill: FAIL", res);
 
 
-    // --- TEST E: GHOST DETECTION ---
-    console.log("\n--- [E] GHOST DETECTION ---");
+    // --- TEST E: DELETE ACCOUNT (Nuclear) ---
+    console.log("\n--- [E] DELETE ACCOUNT (Nuclear) ---");
 
     // Start Session
     res = await apiCall('/api/session', student.token, {
         action: 'START',
         payload: { lectureId: 'lec_E', subjectId: 'sub_E' }
     });
-    const ghostSessionId = res.body.session.sessionId;
 
-    // Manually Delete Firestore Doc
-    console.log(`Deleting Firestore Doc: activeSessions/${ghostSessionId}`);
-    await db.collection('activeSessions').doc(ghostSessionId).delete();
+    // Create Dummy Sub-Collection Data to Verify Recursion
+    await db.collection('users').doc(student.uid).collection('subjects').doc('test_Sub').set({ name: 'Physics' });
 
-    // Send Heartbeat -> Should Fail
-    res = await apiCall('/api/session', student.token, { action: 'HEARTBEAT' });
+    // DELETE
+    res = await apiCall('/api/admin/actions', adminUser.token, {
+        action: 'DELETE_STUDENT',
+        uid: student.uid
+    });
 
-    if (res.status === 410) console.log("✅ Ghost Busted (410): PASS");
-    else console.error(`❌ Ghost Busted: FAIL (Status ${res.status})`, res);
+    if (res.status === 200) console.log("✅ Delete Request: PASS");
+    else console.error("❌ Delete Request: FAIL", res);
 
-    console.log("\n🏁 VERIFICATION COMPLETE.");
+    await sleep(2000); // Allow Cloud Functions / Async ops
+
+    // Verify Data Gone
+    const userDoc = await db.collection('users').doc(student.uid).get();
+    const subjectsSnap = await db.collection('users').doc(student.uid).collection('subjects').get();
+    const rtdbStat = await rtdb.ref(`status/${student.uid}`).get();
+
+    if (!userDoc.exists && subjectsSnap.empty && !rtdbStat.exists()) {
+        console.log("✅ NUCLEAR WIPE CONFIRMED: Auth, Firestore(Rec), RTDB all clean.");
+    } else {
+        console.error("❌ NUCLEAR WIPE FAILED:");
+        if (userDoc.exists) console.log("   - User Doc exists");
+        if (!subjectsSnap.empty) console.log("   - Sub-collections exist");
+        if (rtdbStat.exists()) console.log("   - RTDB Status exists");
+    }
+
+    console.log("\n🏁 HARDENING VERIFICATION COMPLETE.");
     process.exit(0);
 }
 

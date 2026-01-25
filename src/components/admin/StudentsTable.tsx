@@ -12,13 +12,26 @@ interface Props {
 export const StudentsTable = ({ students }: Props) => {
     const { selectStudent, adminError } = useStore();
     const [searchTerm, setSearchTerm] = useState('');
+    const [universityFilter, setUniversityFilter] = useState('ALL');
+    const [facultyFilter, setFacultyFilter] = useState('ALL');
     const [isFullscreen, setIsFullscreen] = useState(false);
 
     // Filter Logic
-    const filteredStudents = students.filter(student =>
-        student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredStudents = students.filter(student => {
+        const matchesSearch =
+            student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            student.fullName?.toLowerCase().includes(searchTerm.toLowerCase()); // Added FullName search
+
+        const matchesUni = universityFilter === 'ALL' || student.university === universityFilter;
+        const matchesFac = facultyFilter === 'ALL' || student.faculty === facultyFilter;
+
+        return matchesSearch && matchesUni && matchesFac;
+    });
+
+    // Extract Unique Options
+    const universities = Array.from(new Set(students.map(s => s.university).filter(Boolean))).sort();
+    const faculties = Array.from(new Set(students.map(s => s.faculty).filter(Boolean))).sort();
 
     return (
         <div className={`w-full flex flex-col flex-1 min-h-0 transition-all duration-300 ${isFullscreen ? 'fixed inset-0 z-50 bg-[#0B1120] p-6' : ''}`}>
@@ -34,7 +47,29 @@ export const StudentsTable = ({ students }: Props) => {
                         className="w-full pl-10 pr-4 py-1.5 bg-slate-900/50 border border-white/5 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 focus:bg-slate-900 transition-all"
                     />
                 </div>
-                <div className="flex items-center gap-2">
+
+                {/* FILTERS */}
+                <div className="flex items-center gap-3">
+                    <select
+                        value={universityFilter}
+                        onChange={(e) => setUniversityFilter(e.target.value)}
+                        className="bg-slate-900/50 border border-white/5 rounded-lg text-xs text-slate-300 py-1.5 px-3 focus:outline-none focus:border-indigo-500/50"
+                    >
+                        <option value="ALL">All Universities</option>
+                        {universities.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+
+                    <select
+                        value={facultyFilter}
+                        onChange={(e) => setFacultyFilter(e.target.value)}
+                        className="bg-slate-900/50 border border-white/5 rounded-lg text-xs text-slate-300 py-1.5 px-3 focus:outline-none focus:border-indigo-500/50"
+                    >
+                        <option value="ALL">All Faculties</option>
+                        {faculties.map(f => <option key={f} value={f}>{f}</option>)}
+                    </select>
+
+                    <div className="h-4 w-px bg-white/10 mx-2"></div>
+
                     <button
                         onClick={() => setIsFullscreen(!isFullscreen)}
                         className="flex items-center gap-2 px-3 py-1.5 bg-slate-900/50 border border-white/5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
@@ -62,6 +97,7 @@ export const StudentsTable = ({ students }: Props) => {
                             <tr>
                                 <th className="px-6 py-4 bg-slate-900 border-y border-l border-white/10 first:rounded-l-[14px] border-r-0 text-left">Student</th>
                                 <th className="px-6 py-4 bg-slate-900 border-y border-white/10 text-center border-l-0 border-r-0">Status</th>
+                                <th className="px-6 py-4 bg-slate-900 border-y border-white/10 text-center border-l-0 border-r-0">Academic Info</th>
                                 <th className="px-6 py-4 bg-slate-900 border-y border-white/10 text-center border-l-0 border-r-0">Study State</th>
                                 <th className="px-6 py-4 bg-slate-900 border-y border-white/10 text-center border-l-0 border-r-0">Joined</th>
                                 <th className="px-6 py-4 bg-slate-900 border-y border-r border-white/10 text-center last:rounded-r-[14px] border-l-0">Actions</th>
@@ -205,6 +241,11 @@ export const StudentsTable = ({ students }: Props) => {
                                                                         <span className="text-[11px] text-slate-500 group-hover:text-slate-400 font-mono mt-0.5 truncate max-w-[180px]">
                                                                             {student.email}
                                                                         </span>
+                                                                        {student.phone && (
+                                                                            <span className="text-[10px] text-slate-600 font-mono mt-0.5">
+                                                                                {student.phone}
+                                                                            </span>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </td>
@@ -234,6 +275,14 @@ export const StudentsTable = ({ students }: Props) => {
                                                                             );
                                                                     }
                                                                 })()}
+                                                            </td>
+
+                                                            {/* COL 1.5: ACADEMIC INFO */}
+                                                            <td className="px-6 py-4 text-center bg-[#0f1523] border-y border-white/[0.04] group-hover:bg-[#151b2b] group-hover:border-white/[0.08] transition-colors">
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className="text-xs text-slate-300 font-medium">{student.university || '-'}</span>
+                                                                    <span className="text-[10px] text-slate-500">{student.faculty || ''} {student.academicYear ? `• ${student.academicYear}` : ''}</span>
+                                                                </div>
                                                             </td>
 
                                                             {/* COL 2: STUDY STATE */}

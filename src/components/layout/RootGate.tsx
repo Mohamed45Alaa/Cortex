@@ -14,7 +14,7 @@ import { PresenceListener } from '@/components/layout/PresenceListener';
  */
 export default function RootGate() {
     // --- 1. UNCONDITIONAL HOOKS ---
-    const { authState, syncAuth, initializeRealtimeSync } = useStore();
+    const { authState, syncAuth, initializeRealtimeSync, isHydrated } = useStore();
     const [isMounted, setIsMounted] = useState(false);
 
     // Initial Mount & Auth Subscription (RUNS ONCE)
@@ -33,8 +33,8 @@ export default function RootGate() {
 
 
     // --- 2. LOADING STATE (Hydration & Auth Check) ---
-    // If not mounted (SSR/Hydration) OR Auth is still figuring itself out
-    if (!isMounted || authState.status === 'LOADING') {
+    // If not mounted (SSR/Hydration) OR Auth is still figuring itself out OR Firestore hasn't probed yet
+    if (!isMounted || authState.status === 'LOADING' || !isHydrated) {
         return (
             <div className="fixed inset-0 z-[999999] bg-[#020617] flex items-center justify-center">
                 <div className="w-8 h-8 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
@@ -43,13 +43,11 @@ export default function RootGate() {
     }
 
     // --- 3. STATE MACHINE DECISIONS ---
-    const isAuth = authState.status === 'AUTHENTICATED';
-    // STRICT: Profile is only complete if fullName is present in Store (from Firestore)
-    const isProfileComplete = authState.user?.completed === true && !!authState.user?.fullName;
 
-    // SCENARIO A: AUTHENTICATED & INCOMPLETE -> ONBOARDING
-    // Strictly isolate "Onboarding" flow so incomplete profiles can't access MainApp
-    if (isAuth && !isProfileComplete) {
+    // LAW 1: ONBOARDING GATE
+    // Only blocked if explicitly FALSE (Brand New User).
+    // Undefined (Legacy) -> Allowed (Auto-migrates eventually or ignored).
+    if (authState.status === 'AUTHENTICATED' && authState.user?.completed === false) {
         return (
             <>
                 <PresenceListener />
@@ -58,9 +56,8 @@ export default function RootGate() {
         );
     }
 
-    // SCENARIO B: MAIN APPLICATION
-    // Renders for both GUESTS and COMPLETE AUTH users.
-    // Guests see "Sign In" button (Handled by ControlLayout within MainApp).
+    // LAW 2: DASHBOARD ACCESS
+    // Default Fallback
     return (
         <>
             <PresenceListener />

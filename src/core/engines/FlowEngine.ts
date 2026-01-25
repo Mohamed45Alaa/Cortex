@@ -10,6 +10,7 @@ export type FlowState =
     | 'DASHBOARD_SETTINGS' // New: Settings View
     | 'DASHBOARD_HISTORY' // New: History View
     | 'DASHBOARD_INPUTS' // New: Academic Inputs Control Panel
+    | 'DASHBOARD_ACCOUNT' // New: Identity Management
     | 'DASHBOARD_CONFIG' // New: Global System Configuration
     | 'SUBJECT_ADD_NAME'
     | 'SUBJECT_SETUP_DATE'

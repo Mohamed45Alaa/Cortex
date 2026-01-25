@@ -72,6 +72,15 @@ export const AdminMetricsService = {
 
                 // --- 3. SESSION-CENTRIC CLASSIFICATION (STRICT FINAL) ---
 
+                // PROBLEM 1 FIX: STALENESS CHECK (90s)
+                // If the user hasn't heartbeated or updated visibility in 90s, they are OFFLINE.
+                // We do NOT trust 'state: online' blindly.
+                const TIME_SINCE_SEEN = NOW - effectiveLastSeen;
+                if (effectiveLastSeen > 0 && TIME_SINCE_SEEN > 90000) {
+                    // 90s Threshold (Heartbeat is 30s-60s)
+                    rawStatus = 'offline';
+                }
+
                 let finalMode = 'none';
                 let sortRank = 7;
 
@@ -266,6 +275,9 @@ export const AdminMetricsService = {
 
         // A. Firestore Profiles (Static)
         const unsubProfiles = onSnapshot(profilesQuery, (snap) => {
+            // CRITICAL FIX: Rebuild Map to handle Deletions
+            studentsMap.clear();
+
             snap.docs.forEach(doc => {
                 const uid = doc.ref.parent.parent?.id;
                 if (uid && doc.data().role !== 'ADMIN') {

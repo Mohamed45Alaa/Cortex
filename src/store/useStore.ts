@@ -45,6 +45,10 @@ interface SystemState extends AdminSlice {
     authModal: { isOpen: boolean; mode: 'LOGIN' | 'REGISTER'; onSuccess?: () => void };
     unsubscribeSnapshot?: () => void; // Listener cleanup
 
+    // --- SECURITY ---
+    ownerUid: string | null; // Strict State Ownership
+    isHydrated: boolean; // True only after Firestore finishes probing
+
     // Remote Termination State
     terminationState: { reason: string; message: string; severity?: 'warning' | 'info' } | null;
 
@@ -87,6 +91,7 @@ interface SystemState extends AdminSlice {
     resumeActiveSession: () => void;
     deleteLecture: (lectureId: string) => void;
     clearActiveSession: () => void;
+    clearTermination: () => void;
 
     // --- AUTH ACTIONS ---
     login: (email: string, pass: string) => Promise<boolean>;
@@ -99,6 +104,26 @@ interface SystemState extends AdminSlice {
     // --- UI ACTIONS ---
     openAuthModal: (mode?: 'LOGIN' | 'REGISTER', onSuccess?: () => void) => void;
     closeAuthModal: () => void;
+}
+
+// --- SYSTEM RECOVERY: ONE-TIME STORAGE PURGE ---
+const STORAGE_KEY = 'academic-system-storage';
+const PURGE_FLAG = 'academic-system-storage-purged-v2'; // Bumped to v2 to force effective clean
+
+if (typeof window !== 'undefined') {
+    try {
+        const hasPurged = localStorage.getItem(PURGE_FLAG);
+        if (!hasPurged) {
+            console.warn('[SYSTEM RECOVERY] 🚨 PURGING CORRUPTED STATE (One-Time Execution)');
+            console.log(`[Recovery] Removing key: ${STORAGE_KEY}`);
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.setItem(PURGE_FLAG, 'true');
+            console.log('[Recovery] Purge Complete. Reloading...');
+            window.location.reload();
+        }
+    } catch (e) {
+        console.error("[Recovery] Purge check failed", e);
+    }
 }
 
 export const useStore = create<SystemState>()(
@@ -130,6 +155,9 @@ export const useStore = create<SystemState>()(
             unsubscribeSnapshot: undefined,
 
             activeSession: null,
+
+            ownerUid: null,
+            isHydrated: false,
 
             // --- ADMIN SLICE INIT ---
             students: [],
@@ -348,7 +376,11 @@ export const useStore = create<SystemState>()(
                     totalPausedTime: 0,
                     isActive: true
                 },
-                terminationState: null // Reset on start
+                // PROBLEM 2 FIX: CLEAR TERMINATION STATE
+                // New session = Clean slate. Historical bans must not block new attempts.
+                terminationState: null,
+                // Also clear any legacy error
+                adminError: null
             })),
 
             pauseActiveSession: () => set((state) => {
@@ -515,13 +547,19 @@ export const useStore = create<SystemState>()(
 
             clearActiveSession: () => set(() => ({ activeSession: null })),
 
+            // --- SAFETY: CLEAR TERMINATION STATE ---
+            clearTermination: () => set(() => ({ terminationState: null, adminError: null })),
+
 
 
             // --- AUTH IMPLEMENTATION ---
             login: async (email, pass) => {
                 try {
                     const result = await AuthService.login(email, pass);
-                    set({ authState: result });
+                    set({
+                        authState: result,
+                        ownerUid: result.user?.id || null
+                    });
                     return true;
                 } catch (e) {
                     console.error("Login Failed", e);
@@ -536,6 +574,8 @@ export const useStore = create<SystemState>()(
 
                     // FIRESTORE SYNC: Load User Data
                     if (result.status === 'AUTHENTICATED' && result.user) {
+                        set({ ownerUid: result.user.id }); // Claim Ownership
+
                         const userData = await FirestoreService.loadUserData(result.user.id);
                         if (userData) {
                             set((state) => {
@@ -655,44 +695,113 @@ export const useStore = create<SystemState>()(
 
             logout: async () => {
                 await AuthService.logout();
-                set({ authState: { status: 'GUEST', user: null, token: null } });
+                // PHASE 2 & 4: MEMORY WIPE
+                // Explicitly clear all academic state. Do NOT rely on reload.
+                set({
+                    authState: { status: 'GUEST', user: null, token: null },
+                    ownerUid: null,
+                    isHydrated: false, // Reset for next user
+
+                    // Wipe Data
+                    subjects: [],
+                    lectures: [],
+                    sessions: [],
+                    activeSession: null,
+
+                    // Reset Profile
+                    profile: {
+                        consistencyIndex: 85,
+                        learningPhase: 'INIT',
+                        totalSessions: 0,
+                        currentCapacity: 100,
+                        lastSessionDate: "2024-01-01T00:00:00.000Z"
+                    },
+                    dailyLoad: {
+                        date: new Date().toISOString().split('T')[0],
+                        totalCognitiveCost: 0,
+                        status: 'Safe'
+                    },
+
+                    // Clean Admin
+                    selectedStudent: null,
+                    adminError: null,
+
+                    // Safety
+                    terminationState: null
+                });
             },
 
             syncAuth: () => {
-                const unsubscribe = AuthService.initCallback((result) => {
-                    set((state) => {
-                        // Cleanup listener on logout
-                        if (result.status !== 'AUTHENTICATED' && state.unsubscribeSnapshot) {
-                            console.log("[Store] Cleaning up snapshot listener");
-                            state.unsubscribeSnapshot();
-                            return { authState: result, unsubscribeSnapshot: undefined };
+                const unsubscribe = AuthService.initCallback(async (result) => {
+                    const state = get();
+
+                    // Cleanup listener on logout
+                    if (result.status !== 'AUTHENTICATED' && state.unsubscribeSnapshot) {
+                        console.log("[Store] Cleaning up snapshot listener");
+                        state.unsubscribeSnapshot();
+                        // Note: We don't return here, we proceed to update authState
+                    }
+
+                    // [F5 REFRESH HANDLER]
+                    // Since Persistence is disabled for academic data, we must hydrate on reload.
+                    // If we have a user but no subjects, this is a distinct reload event.
+                    if (result.status === 'AUTHENTICATED' && result.user) {
+
+                        // Strict Owner Check (Phase 1 Redundancy)
+                        // If ownerUid exists and mismatches, we would have wiped it on logout.
+                        // But on fresh load, ownerUid is null.
+
+                        // Check if hydration needed
+                        if (state.subjects.length === 0 && state.sessions.length === 0) {
+                            console.log("[Store] 🚀 Auto-Hydrating Data (Refresh Detected) for:", result.user.id);
+                            // Set Owner Immediately
+                            set({ ownerUid: result.user.id });
+
+                            const userData = await FirestoreService.loadUserData(result.user.id);
+
+                            // HYDRATION: If we found data, or even if we didn't (Fresh User),
+                            // we mark as hydrated so RootGate can decide.
+                            if (userData) {
+                                set((current) => ({
+                                    // Full Hydration
+                                    subjects: userData.subjects,
+                                    lectures: userData.lectures,
+                                    sessions: userData.sessions,
+
+                                    // Snapshot overlay
+                                    profile: userData.stateSnapshot?.profile || current.profile,
+                                    dailyLoad: userData.stateSnapshot?.dailyLoad || current.dailyLoad,
+
+                                    // Identity Merge
+                                    authState: { ...result, user: { ...result.user, ...userData.identityProfile } } as any,
+                                    isHydrated: true // ✅ DATA READY
+                                }));
+                                console.log("[Store] Auto-Hydration Complete.");
+                                return; // Skip the standard merge below as we just did a full set
+                            }
                         }
+                    }
 
-                        // [CRITICAL FIX] MERGE LOGIC
-                        // If we are authenticated and the UID matches our hydrated local state,
-                        // we MUST preserve the local profile data (completed, academicYear, etc.)
-                        // because raw Firebase Auth result doesn't have them.
-                        if (result.status === 'AUTHENTICATED' && result.user && state.authState.user?.id === result.user.id) {
-
-                            // Merge Strategy: Take fresh Auth data (token, email) + Overlay Local Profile Data
+                    set((current) => {
+                        // [Standard Auth Merge Logic] - Preserved for steady state
+                        if (result.status === 'AUTHENTICATED' && result.user && current.authState.user?.id === result.user.id) {
                             const mergedUser = {
-                                ...result.user, // Fresh Identity
-                                ...state.authState.user, // Persisted Profile (wins for custom fields)
-                                // Explicitly re-apply fresh identity criticals if needed, 
-                                // but usually local state has the correct data from previous session.
-                                // To be safe, we ensure 'completed' is strictly preserved if true.
-                                completed: state.authState.user.completed === true ? true : result.user.completed
+                                ...result.user,
+                                ...current.authState.user,
+                                completed: current.authState.user.completed === true ? true : result.user.completed
                             };
-
-                            console.log("[Store] syncAuth: Preserved Local Profile", {
-                                wasCompleted: state.authState.user.completed,
-                                nowCompleted: mergedUser.completed
-                            });
-
-                            return { authState: { ...result, user: mergedUser } };
+                            return { authState: { ...result, user: mergedUser }, isHydrated: true };
                         }
 
-                        return { authState: result };
+                        // IF GUEST or JUST LOGGED IN (but didn't hit hydration above?)
+                        // We must ensure isHydrated is true if we are in steady state
+
+                        // If Guest:
+                        if (result.status === 'GUEST') return { authState: result, isHydrated: true };
+
+                        // If Auth but missed the "Empty State" check (Meaning we had data in memory??)
+                        // Then we are also hydrated.
+                        return { authState: result, isHydrated: true };
                     });
                 });
                 // Note: We don't store the auth unsubscribe here as it's global.
@@ -716,41 +825,13 @@ export const useStore = create<SystemState>()(
                         }));
                     });
 
-                    // B. RTDB LISTENER (Session Kill Switch & Connection)
-                    let unsubscribeRTDB = () => { };
-                    const db = getDatabaseInstance();
-                    if (db) {
-                        const sessionRef = ref(db, `status/${uid}/activeSession`);
-                        const cleanRTDB = onValue(sessionRef, (snapshot) => {
-                            const remoteSession = snapshot.val();
-                            const currentStore = get();
-
-                            // KILL SWITCH LOGIC
-                            // IF Local thinks we are active (activeSession != null)
-                            // AND Remote says we are inactive (remoteSession == null)
-                            // THEN Force End Local Session.
-                            // KILL SWITCH LOGIC
-                            // IF Local thinks we are active (activeSession != null)
-                            // AND Remote says we are inactive (remoteSession == null)
-                            // THEN Force End Local Session.
-                            if (currentStore.activeSession && !remoteSession) {
-                                console.warn("[Store] 🚨 REMOTE KILL SWITCH TRIGGERED: Session Force Ended by Server/Admin.");
-
-                                // 1. Terminate Local Session State (Silent Reset)
-                                // Pass 'true' for isRemoteKill to SKIP writes and metrics
-                                currentStore.endActiveSession(false, true);
-
-                                // 2. Hard Clear just in case
-                                set({ activeSession: null });
-                            }
-                        });
-                        unsubscribeRTDB = () => cleanRTDB();
-                    }
+                    // B. RTDB LISTENER REMOVED (Legacy Kill Switch)
+                    // We no longer listen to activeSession != null to kill local session.
+                    // Presence is now decoupled.
 
                     // Combined Cleanup
                     const cleanup = () => {
                         unsubscribeFirestore();
-                        unsubscribeRTDB();
                     };
 
                     return { unsubscribeSnapshot: cleanup };
@@ -764,9 +845,23 @@ export const useStore = create<SystemState>()(
             name: 'academic-system-storage', // Key in localStorage
             storage: createJSONStorage(() => localStorage), // Persist to browser
             partialize: (state) => ({
-                // Omit authModal.onSuccess which is not serializable
-                ...state,
-                authModal: { ...state.authModal, onSuccess: undefined }
+                // PHASE 4: PERSISTENCE SAFETY
+                // Whitelist ONLY infrastructure state.
+                // ACADEMIC DATA IS MEMORY-ONLY (Relies on Firestore Hydration)
+
+                // 1. Identity & Auth
+                ownerUid: state.ownerUid,
+                authState: state.authState,
+
+                // 2. UI Preferences
+                isAdminMode: state.isAdminMode,
+
+                // 3. Transient UI
+                authModal: { ...state.authModal, onSuccess: undefined },
+
+                // EXPLICITLY OMIT: subjects, lectures, sessions, profile, dailyLoad
+                // This ensures F5 reload triggers a fresh fetch/listener via RootGate,
+                // and prevents cross-user contamination in localStorage.
             })
         }
     )

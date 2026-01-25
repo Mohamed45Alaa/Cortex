@@ -10,6 +10,7 @@ import { SubjectSettingsView } from '@/components/dashboard/SubjectSettingsView'
 import { SessionTimerView } from '@/components/layout/SessionTimerView';
 import { HistoryView } from '@/components/history/HistoryView';
 import { SystemConfigView } from '@/components/dashboard/SystemConfigView';
+import { AccountSettingsView } from '@/components/dashboard/AccountSettingsView';
 import { AcademicStructureEngine } from '@/core/engines/AcademicStructureEngine';
 import { PreStudyEngine } from '@/core/engines/PreStudyEngine';
 import { StudentProfilerEngine } from '@/core/engines/StudentProfilerEngine';
@@ -336,7 +337,7 @@ export function MainApp() {
 
 
         // --- DASHBOARD ROUTER ---
-        if (['SUBJECT_LIST', 'DASHBOARD_SUBJECT', 'DASHBOARD_SETTINGS', 'DASHBOARD_HOME', 'DASHBOARD_HISTORY', 'DASHBOARD_CONFIG'].includes(context.currentState)) {
+        if (['SUBJECT_LIST', 'DASHBOARD_SUBJECT', 'DASHBOARD_SETTINGS', 'DASHBOARD_HOME', 'DASHBOARD_HISTORY', 'DASHBOARD_CONFIG', 'DASHBOARD_ACCOUNT'].includes(context.currentState)) {
             // ... View Logic ...
             if (context.currentState === 'DASHBOARD_SETTINGS' && context.selectedSubjectId) {
                 const subject = subjects.find(s => s.id === context.selectedSubjectId)!;
@@ -425,6 +426,21 @@ export function MainApp() {
                         onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
                     >
                         <SystemConfigView lang={language} />
+                    </ControlLayout>
+                );
+            }
+
+            if (context.currentState === 'DASHBOARD_ACCOUNT') {
+                return (
+                    <ControlLayout
+                        currentView={context.currentState}
+                        onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
+                        lang={language}
+                        onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
+                        theme={theme}
+                        onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                    >
+                        <AccountSettingsView lang={language} />
                     </ControlLayout>
                 );
             }

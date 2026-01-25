@@ -33,7 +33,11 @@ export const SystemAPI = {
             });
         }
 
-        // 2. Prepare Context (Predictions)
+        // 2. UNCONDITIONAL RESET: Enforce Law of Unconditional Start
+        // Clearing termination flags allows the UI to render the Session Timer controls cleanly.
+        useStore.getState().clearTermination();
+
+        // 3. Prepare Context (Predictions)
         return SystemOrchestrator.prepareSession(lectureId);
     },
 

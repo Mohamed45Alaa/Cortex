@@ -7,7 +7,10 @@ import {
     serverTimestamp,
     collection,
     onSnapshot,
-    writeBatch
+    writeBatch,
+    query, // New
+    where, // New
+    collectionGroup // New
 } from 'firebase/firestore';
 import { getFirestoreInstance } from './firebase';
 
@@ -31,16 +34,70 @@ export const FirestoreService = {
             if (!db) return;
 
             const userRef = doc(db, 'users', uid, 'profile', 'main');
-            await setDoc(userRef, {
+
+            // PHASE 2: HYBRID WRITE (Backward Compatibility + Forward Strictness)
+            // We write flat fields for legacy readers AND 'identity' object for new strict readers.
+            const updates: any = {
                 ...profile,
                 lastActive: serverTimestamp(),
-            }, { merge: true });
+            };
+
+            // If profile update contains identity fields, enforce strict schema structure
+            if (profile.fullName || profile.phone || profile.email) {
+                updates.identity = {
+                    fullName: profile.fullName || null,
+                    phone: profile.phone || null,
+                    email: profile.email || null // Email is technically read-only but syncing it here is fine
+                };
+            }
+
+            await setDoc(userRef, updates, { merge: true });
 
             console.log("[Firestore] Profile saved successfully.");
 
         } catch (error) {
             console.warn("[Firestore] Failed to save profile:", error);
             throw error; // Propagate to UI
+        }
+    },
+
+    /**
+     * Check if a phone number is already in use by another user.
+     * Uses Collection Group Query on 'profile'.
+     */
+    checkPhoneUnique: async (uid: string, phone: string): Promise<boolean> => {
+        try {
+            const db = getFirestoreInstance();
+            if (!db) return true; // Fail safe
+
+            // Query global 'profile' collection group
+            // Note: Requires Index on 'phone' or 'identity.phone'.
+            // We search both legacy 'phone' and strict 'identity.phone' to be safe?
+            // Let's stick to root 'phone' as we sync it there.
+
+            const profileQuery = query(
+                collectionGroup(db, 'profile'),
+                where('phone', '==', phone)
+            );
+
+            const snapshot = await getDocs(profileQuery);
+
+            if (snapshot.empty) return true;
+
+            // If found, ensure it's not THIS user
+            let isUnique = true;
+            snapshot.forEach(doc => {
+                const docUid = doc.ref.parent.parent?.id;
+                if (docUid && docUid !== uid) {
+                    isUnique = false;
+                }
+            });
+
+            return isUnique;
+
+        } catch (error) {
+            console.warn("[Firestore] Phone uniqueness check failed:", error);
+            return true; // Permit on error to avoid blocking logic
         }
     },
 
@@ -264,6 +321,16 @@ export const FirestoreService = {
             const stateSnapshot = snapshotSnap.exists() ? snapshotSnap.data() : null;
             const identityProfile = profileSnap.exists() ? profileSnap.data() : null;
 
+            // PHASE 2: READ NORMALIZATION
+            // If identity object is missing but flat fields exist (Legacy), normalize in-memory.
+            if (identityProfile && !identityProfile.identity) {
+                identityProfile.identity = {
+                    fullName: identityProfile.fullName || identityProfile.name || '',
+                    phone: identityProfile.phone || '',
+                    email: identityProfile.email || ''
+                };
+            }
+
             // 2. Load Subjects
             const subjectsColl = collection(db, 'users', uid, 'subjects');
             const subjectsSnap = await getDocs(subjectsColl);
@@ -324,6 +391,19 @@ export const FirestoreService = {
                     });
                 }));
             }));
+
+            // PHASE 4: LEGACY USER PROTECTION (SILENT MIGRATION)
+            // Rule: If user has subjects BUT completed=false/undefined, they are Legacy.
+            // Action: Auto-mark as completed to prevent Onboarding Overlay.
+            if (identityProfile && !identityProfile.completed && subjects.length > 0) {
+                console.log("[Firestore] Legacy User Detected. Auto-completing onboarding...");
+                identityProfile.completed = true;
+
+                // Silent Async Write (Fire & Forget)
+                setDoc(profileRef, { completed: true }, { merge: true }).catch(err =>
+                    console.warn("[Firestore] Failed silent legacy migration:", err)
+                );
+            }
 
             console.log(`[Firestore] Hydration complete in ${Date.now() - startTime}ms. Found: ${subjects.length} Subjects, ${lectures.length} Lectures.`);
 

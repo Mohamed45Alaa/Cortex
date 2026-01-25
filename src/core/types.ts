@@ -237,8 +237,19 @@ export interface UserProfile {
     faculty?: string;
     academicTrack?: string;
 
-    completed: boolean; // True if mandatory profile is filled
+    completed?: boolean; // undefined = Unknown/Loading, false = New, true = Done
     createdAt: string;
+
+    // ✅ PHASE 2: IDENTITY HARDENING (Strict Schema)
+    identity?: {
+        fullName: string;
+        phone: string;
+        email: string;
+    };
+
+    // ✅ PHASE 5: FUTURE RANKING (Schema Only)
+    rank?: number;       // 1-7 (Placeholder)
+    lastActive?: number; // Timestamp (Placeholder)
 
     // ✅ ADDED FOR ADMIN / REALTIME
     study?: StudyState;
