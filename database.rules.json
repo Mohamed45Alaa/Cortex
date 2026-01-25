@@ -3,9 +3,8 @@
         "status": {
             ".read": "auth.token.role === 'ADMIN'",
             "$uid": {
-                ".read": "$uid === auth.uid",
-                ".write": "$uid === auth.uid",
-                ".validate": "newData.hasChildren(['state', 'lastChanged'])"
+                ".read": "$uid === auth.uid || auth.token.role === 'ADMIN'",
+                ".write": false
             }
         }
     }

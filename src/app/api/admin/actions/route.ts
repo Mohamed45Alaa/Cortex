@@ -101,56 +101,62 @@ export async function POST(req: NextRequest) {
             const sessionSnap = await sessionRef.get();
             const activeSession = sessionSnap.val();
 
+            let targetSessionId = activeSession?.sessionId;
+
+            // IDEMPOTENCY: If RTDB is empty, check if we have a provided sessionId in payload? 
+            // Or just assume job is done. But we want to be sure Firestore is clean too.
+
             if (activeSession) {
                 console.log(`[API] Terminating Active Session: ${activeSession.sessionId}`);
 
                 // 2. CALCULATE DURATION (Best Effort)
                 const startTime = activeSession.startedAt;
                 const endTime = Date.now();
-                // Ensure non-negative duration
                 const durationMinutes = Math.max(0, Math.floor((endTime - startTime) / 60000));
 
                 // 3. PROVISIONAL LOGGING (Firestore)
-                // Write session log + Update Metrics
+                // Use SET with Merge for Idempotency (Update throws if missing)
                 const sessionDocRef = db.collection(`users/${uid}/sessions`).doc(activeSession.sessionId as string);
 
-                const batch = db.batch();
-
-                // Session Record
-                batch.set(sessionDocRef, {
+                await sessionDocRef.set({
                     id: activeSession.sessionId,
                     subjectId: activeSession.subjectId,
                     lectureId: activeSession.lectureId,
                     startTime: new Date(startTime).toISOString(),
                     endTime: new Date(endTime).toISOString(),
                     duration: durationMinutes,
-                    status: 'INTERRUPTED_BY_ADMIN', // Explicit Status
+                    status: 'INTERRUPTED_BY_ADMIN',
                     createdAt: new Date().toISOString()
-                }, { merge: true }); // Merge protects against race conditions
+                }, { merge: true });
 
-                await batch.commit();
+                // 4. ARCHIVE IN FIRESTORE (New Authority)
+                // Use SET with Merge: "Make it forced end, creating if necessary"
+                await db.collection('activeSessions').doc(activeSession.sessionId).set({
+                    uid: uid, // Ensure UID is present for audit
+                    status: 'FORCED_END',
+                    endedBy: 'ADMIN',
+                    endedAt: FieldValue.serverTimestamp()
+                }, { merge: true });
+
             } else {
-                console.warn(`[API] Force End requested but no active session found in RTDB.`);
+                console.warn(`[API] Force End requested but no active session found in RTDB. Ensuring System is Clean.`);
+                // Check if there are ANY running sessions in Firestore for this user? 
+                // For now, if RTDB is clean, we assume the user is "Offline/Idle".
+                // We still emit the Kill Signal just in case the Client is caching something.
             }
 
-            // 4. RESET COGNITIVE LOADS (Mercy Rule)
-            // Ensure student is NOT locked out after admin intervention.
-            // A. Wipe Daily Load Accumulators
+            // 5. RESET COGNITIVE LOADS (Mercy Rule)
             const dailyLoadRef = db.collection(`users/${uid}/dailyLoad`);
             await db.recursiveDelete(dailyLoadRef);
 
-            // B. Reset Profile Capacity to 100%
             const profileRef = db.collection(`users/${uid}/profile`).doc('main');
-            const profileSnap = await profileRef.get();
-            if (profileSnap.exists) {
-                await profileRef.update({
-                    currentCapacity: 100,
-                    status: 'Safe' // Reset any status flags if present
-                });
-            }
+            await profileRef.set({
+                currentCapacity: 100,
+                status: 'Safe'
+            }, { merge: true }); // Merge prevents overwrite of name/email
 
-            // 5. AUTHORITATIVE TERMINATION SIGNAL (The Notification)
-            // Client listens to this -> Stops Timer -> Redirects to Complete Screen with Warning
+            // 6. AUTHORITATIVE TERMINATION SIGNAL (The Notification)
+            // Always send this, even if we didn't find a session. Clears client UI.
             await rtdb.ref(`status/${uid}/sessionTermination`).set({
                 reason: 'ADMIN_FORCE_CLOSE',
                 message: 'Session Force Ended by Administrator',
@@ -158,8 +164,7 @@ export async function POST(req: NextRequest) {
                 severity: 'warning'
             });
 
-            // 6. CLEAR RTDB ACTIVE SESSION (The Kill)
-            // This triggers the Client Listener (if online) to stop the timer.
+            // 7. CLEAR RTDB ACTIVE SESSION (The Kill)
             await rtdb.ref(`status/${uid}`).update({
                 activeSession: null
             });

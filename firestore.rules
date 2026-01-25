@@ -49,10 +49,16 @@ service cloud.firestore {
         allow write: if request.auth.uid == uid;
       }
 
-      // 3) SESSIONS (CRITICAL)
+      // 3) SESSIONS (CRITICAL - SERVER AUTHORITY)
       match /sessions/{sessionId} {
         allow read: if isAdmin() || request.auth.uid == uid;
-        allow write: if request.auth.uid == uid;
+        allow write: if false; // SERVER ONLY
+      }
+
+      // 4) ACTIVE SESSIONS (GLOBAL AUTHORITY)
+      match /activeSessions/{sessionId} {
+        allow read: if isAdmin() || (request.auth.uid == resource.data.uid);
+        allow write: if false; // SERVER ONLY
       }
 
       // KEEPING THIS AS IT IS ACTIVELY USED BY CODE

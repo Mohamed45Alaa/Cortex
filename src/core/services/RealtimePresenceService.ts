@@ -1,16 +1,46 @@
-import { getDatabaseInstance } from "@/core/services/firebase";
-import { ref, onValue, onDisconnect, serverTimestamp, update } from "firebase/database";
+import { getDatabaseInstance, getAuthInstance } from "@/core/services/firebase";
+import { ref, onValue, onDisconnect, serverTimestamp, update, get } from "firebase/database";
 
 // ROOT PATHS
 const STATUS_ROOT = (uid: string) => `status/${uid}`;
 const CONNECTED_REF = ".info/connected";
 
+// API HELPER
+async function callSessionApi(action: 'START' | 'END' | 'HEARTBEAT', payload: any = {}) {
+    const auth = getAuthInstance();
+    const user = auth?.currentUser;
+    if (!user) return;
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/session', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ action, payload })
+        });
+
+        if (response.status === 410) {
+            // CRITICAL: Server says we are dead.
+            console.error("🚨 SESSION REVOKED BY SERVER (410 GONE). FORCE EXITING.");
+            window.location.reload(); // Simple nuclear option for now
+            return null;
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Session API Error:", error);
+        return null;
+    }
+}
+
 export const RealtimePresenceService = {
 
     /**
      * INITIALIZE CONNECTION LISTENER
-     * Call this once on app mount (AuthState listener).
-     * Sets up the "Kill Switch" (onDisconnect) mechanics.
+     * Listen ONLY. Do not write session state directly.
      */
     initialize: (uid: string) => {
         const db = getDatabaseInstance();
@@ -19,34 +49,21 @@ export const RealtimePresenceService = {
         const connectedRef = ref(db, CONNECTED_REF);
         const userStatusRef = ref(db, STATUS_ROOT(uid));
 
-        // Listen to connection state
+        // 1. Connection Binding (Allowed Client Write? NO. Server-Only Rules applied)
+        // We only LISTEN to the connection state to know if we *should* be sending heartbeats.
         onValue(connectedRef, (snap) => {
-            if (snap.val() === true) {
-                // 1. Establish "Kill Switch" FIRST
-                // If we lose connection, update status to 'offline' but PRESERVE SESSION.
-                onDisconnect(userStatusRef).update({
-                    state: 'offline',
-                    lastSeenAt: serverTimestamp()
-                    // activeSession: null (REMOVED: Session survives disconnect)
-                });
-
-                // 2. Set Initial Online State
-                update(userStatusRef, {
-                    state: 'online',
-                    lastSeenAt: serverTimestamp(),
-                });
-            }
+            const isConnected = snap.val() === true;
+            console.log("[Presence] Connection State:", isConnected);
+            // We no longer write to RTDB here.
         });
 
-        // 3. LISTEN FOR AUTHORITATIVE REPORT (Admin Force End)
-        // This is the SINGLE SOURCE OF TRUTH for forced termination.
+        // 2. LISTEN FOR KILL SWITCH (Admin / Zombie Reaper)
         const terminationRef = ref(db, `status/${uid}/sessionTermination`);
         onValue(terminationRef, (snap) => {
             const data = snap.val();
             if (data) {
-                console.warn("[RTDB] 🚨 RECEIVED AUTHORITATIVE TERMINATION SIGNAL:", data);
-                // Force End Local Session (Remote Kill)
-                // Pass payload to display warning in UI
+                console.warn("[RTDB] 🚨 RECEIVED TERMINATION SIGNAL:", data);
+                // Call Store to handle UI cleanup
                 import("@/store/useStore").then(({ useStore }) => {
                     useStore.getState().endActiveSession(false, true, data);
                 });
@@ -55,102 +72,41 @@ export const RealtimePresenceService = {
     },
 
     /**
-     * UPDATE VISIBILITY STATE
-     * 'online' (Focused) vs 'background' (Blurred)
+     * UPDATE VISIBILITY (Disabled - Strict Server Authority)
      */
     updateState: (uid: string, state: 'online' | 'background') => {
-        const db = getDatabaseInstance();
-        if (!db) return;
-
-        const userStatusRef = ref(db, STATUS_ROOT(uid));
-        update(userStatusRef, {
-            state,
-            lastSeenAt: serverTimestamp()
-        });
+        // Disabled to prevent Permission Denied errors.
+        // If focus tracking is needed, it must go through API.
     },
 
     /**
-     * HEARTBEAT (Keep-Alive)
-     * Updates timestamps every 30-60s.
-     * MUST NOT overwrite 'background' state.
+     * HEARTBEAT -> NOW SERVER AUTHORITATIVE
+     * "I am still here. Am I allowed to be?"
      */
-    heartbeat: (uid: string) => {
-        const db = getDatabaseInstance();
-        if (!db) return;
-
-        const userStatusRef = ref(db, STATUS_ROOT(uid));
-        // We only update lastSeenAt. We rely on updateState to manage online/background.
-        update(userStatusRef, {
-            lastSeenAt: serverTimestamp()
-        });
+    heartbeat: async (uid: string) => {
+        // Server Verification ONLY regarding "Last Seen"
+        await callSessionApi('HEARTBEAT');
     },
 
     /**
-     * SESSION MANAGEMENT
-     * Writes full activeSession object.
+     * START SESSION -> API CALL
      */
-    startSession: (uid: string, lectureId: string, subjectId: string) => {
-        const db = getDatabaseInstance();
-        if (!db) return;
-
-        const userStatusRef = ref(db, STATUS_ROOT(uid));
-        const sessionId = `${uid}_${lectureId}_${Date.now()}`;
-
-        // 1. Write FULL Active Session Object
-        update(userStatusRef, {
-            // Force online when starting session (usually user is active)
-            state: 'online',
-            lastSeenAt: serverTimestamp(),
-            activeSession: {
-                sessionId,
-                lectureId,
-                subjectId,
-                startedAt: serverTimestamp()
-            }
-        });
-    },
-
-    endSession: (uid: string) => {
-        const db = getDatabaseInstance();
-        if (!db) return;
-
-        const userStatusRef = ref(db, STATUS_ROOT(uid));
-
-        // Atomic Wipe of Session -> effectively "Not Studying"
-        update(userStatusRef, {
-            activeSession: null,
-            lastSeenAt: serverTimestamp()
-        });
+    startSession: async (uid: string, lectureId: string, subjectId: string) => {
+        return callSessionApi('START', { lectureId, subjectId });
     },
 
     /**
-     * MANUAL OFFLINE (Cleanup)
-     * e.g. Logout or Tab Close
-     * STRICT: Must PRESERVE activeSession if one exists.
+     * END SESSION -> API CALL
      */
+    endSession: async (uid: string) => {
+        return callSessionApi('END');
+    },
+
     setOffline: (uid: string) => {
-        const db = getDatabaseInstance();
-        if (!db) return;
-
-        const userStatusRef = ref(db, STATUS_ROOT(uid));
-        update(userStatusRef, {
-            state: 'offline',
-            lastSeenAt: serverTimestamp()
-            // activeSession: null (REMOVED: Session persists until explicitly ended)
-        });
+        // Client cannot declare itself offline. It just stops heartbeating.
     },
 
-    /**
-     * TRACK PAGE NAVIGATION
-     */
     trackPage: (uid: string, path: string) => {
-        const db = getDatabaseInstance();
-        if (!db) return;
-
-        const userStatusRef = ref(db, STATUS_ROOT(uid));
-        update(userStatusRef, {
-            currentPage: path,
-            lastSeenAt: serverTimestamp()
-        });
+        // Disabled to prevent Permission Denied errors.
     }
 };
