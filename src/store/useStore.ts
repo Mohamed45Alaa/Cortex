@@ -9,25 +9,46 @@ import {
     SubjectConfig,
     SubjectMetrics,
     AuthContextState,
-    UserProfile
+    UserProfile,
+    SegmentType,
+    SessionSegment
 } from '@/core/types';
 import { AuthService } from '@/core/services/AuthService';
 import { FirestoreService } from '@/core/services/FirestoreService';
 import { getDatabaseInstance } from '@/core/services/firebase';
 import { ref, onValue } from 'firebase/database';
 import { CognitiveEngine } from '@/core/engines/CognitiveEngine';
+import { CognitiveLoadEngine } from '@/core/engines/CognitiveLoadEngine';
+
+// --- HELPER: STRICT SANITIZER ---
+// [CRITICAL] Enforces 0-10 Scale. No exceptions.
+// Future-proofs against legacy data or calculation bugs.
+const sanitize = (value: number | undefined | null): number => {
+    if (value === undefined || value === null || isNaN(value)) return 0;
+
+    let safeValue = value;
+    // Auto-fix legacy 0-100 values
+    if (safeValue > 10) {
+        safeValue = safeValue / 10;
+    }
+
+    // Hard Clamp
+    return Math.min(10, Math.max(0, safeValue));
+};
 
 // --- ADMIN STATE SLICE ---
 interface AdminSlice {
     students: UserProfile[];
     selectedStudent: UserProfile | null;
     isAdminMode: boolean; // UI Toggle
+    adminLiveMonitoring: boolean; // Live Stream Control
     adminError: string | null; // Error State for UI Feedback
 
     // Actions
     fetchStudents: () => Promise<void>;
     selectStudent: (student: UserProfile | null) => void;
     setAdminMode: (isActive: boolean) => void;
+    setAdminMonitoring: (enabled: boolean) => void;
 }
 
 // Merge SystemState
@@ -52,15 +73,31 @@ interface SystemState extends AdminSlice {
     // Remote Termination State
     terminationState: { reason: string; message: string; severity?: 'warning' | 'info' } | null;
 
+    // --- SESSION GATE PROTECTION ---
+    isServerConfirmedSession: boolean; // True only after RESTORE or START API confirms
+    creationWindowUntil: number; // Timestamp - SessionGate ignores redirects until this time
+
     // --- ACTIVE SESSION (PERSISTENCE) ---
     activeSession: {
+        id: string; // [ADAPTIVE] Added for persistence/crash recovery
         lectureId: string;
         subjectId: string; // Explicitly Added
         startTime: number;     // Timestamp when session started
         originalDuration: number; // Planned minutes
+        expectedDuration?: number; // [NEW] Adaptive expected time
         pausedAt: number | null; // Timestamp if currently paused, else null
         totalPausedTime: number; // Accumulated pause duration in ms
-        isActive: boolean;     // Redundant but helpful? Keep for clarity.
+        isActive: boolean;
+        isAutoPaused?: boolean; // Track if system paused it (Focus Detection)
+
+        // Forensic Tracking
+        segments: SessionSegment[];
+        // Actually adhering to plan: isMediaPlaying on uiState.
+
+        // [TERMINATION GUARD]
+        status?: 'IN_PROGRESS' | 'COMPLETED' | 'INTERRUPTED' | 'FORCED_END';
+        endedBy?: 'USER' | 'ADMIN' | 'SYSTEM';
+        isValidForMetrics?: boolean;
     } | null;
 
     // --- ACTIONS (Mutators) ---
@@ -86,12 +123,15 @@ interface SystemState extends AdminSlice {
 
     // 4. Active Session Control
     startActiveSession: (lectureId: string, durationMinutes: number, subjectId: string) => void;
-    endActiveSession: (penalty?: boolean, isRemoteKill?: boolean, terminationPayload?: { reason: string; message: string; severity?: 'warning' | 'info' }) => void; // Finalizes the session
+    endActiveSession: (penalty?: boolean, isRemoteKill?: boolean, terminationPayload?: { reason: string; message: string; severity?: 'warning' | 'info' }) => StudySession | null; // Finalizes the session and returns it
     pauseActiveSession: () => void;
     resumeActiveSession: () => void;
+    autoPauseSession: () => void; // System-triggered
+    autoResumeSession: () => void; // System-triggered
     deleteLecture: (lectureId: string) => void;
     clearActiveSession: () => void;
     clearTermination: () => void;
+    restoreSessionFromRTDB: (session: any) => void;
 
     // --- AUTH ACTIONS ---
     login: (email: string, pass: string) => Promise<boolean>;
@@ -101,9 +141,23 @@ interface SystemState extends AdminSlice {
     syncAuth: () => void;
     initializeRealtimeSync: (uid: string) => void;
 
-    // --- UI ACTIONS ---
+    // --- UI STATE (New Slice) ---
+    uiState: {
+        isMainTimerVisible: boolean;
+        activeToolId: string | null;
+        isMediaPlaying: boolean; // Tracks if internal media is playing
+    };
+    setMainTimerVisibility: (isVisible: boolean) => void;
+    setActiveTool: (toolId: string | null) => void;
+    setMediaPlaying: (isPlaying: boolean) => void;
+
+    // Segment Logging
+    logSegment: (type: SegmentType) => void;
+
+    // --- LOGIC ACTIONS ---
     openAuthModal: (mode?: 'LOGIN' | 'REGISTER', onSuccess?: () => void) => void;
     closeAuthModal: () => void;
+    healAccount: () => Promise<void>;
 }
 
 // --- SYSTEM RECOVERY: ONE-TIME STORAGE PURGE ---
@@ -155,9 +209,77 @@ export const useStore = create<SystemState>()(
             unsubscribeSnapshot: undefined,
 
             activeSession: null,
+            terminationState: null,
+
+            // --- SESSION GATE FLAGS ---
+            isServerConfirmedSession: false,
+            creationWindowUntil: 0,
 
             ownerUid: null,
             isHydrated: false,
+
+            // --- UI STATE INIT ---
+            uiState: {
+                isMainTimerVisible: true,
+                activeToolId: null,
+                isMediaPlaying: false
+            },
+
+            setMainTimerVisibility: (isVisible) => set((state) => ({
+                uiState: { ...state.uiState, isMainTimerVisible: isVisible }
+            })),
+
+            setActiveTool: (toolId) => set((state) => ({
+                uiState: { ...state.uiState, activeToolId: toolId }
+            })),
+
+            setMediaPlaying: (isPlaying) => set((state) => ({
+                uiState: { ...state.uiState, isMediaPlaying: isPlaying }
+            })),
+
+            logSegment: (type: SegmentType) => set((state) => {
+                if (!state.activeSession) return {};
+
+                const now = Date.now();
+                const segments = [...state.activeSession.segments];
+                const lastSegment = segments.length > 0 ? segments[segments.length - 1] : null;
+
+                // If same type, extend or ignore? 
+                // Better to close previous and start new to allow granular analysis
+                // BUT if type is same, we merge?
+                // Plan: Tracker calls this ONLY on change.
+
+                if (lastSegment && !lastSegment.endTime) {
+                    // Close previous
+                    lastSegment.endTime = now;
+                    lastSegment.duration = now - lastSegment.startTime;
+                }
+
+                // Start new
+                segments.push({
+                    startTime: now,
+                    endTime: null,
+                    type,
+                    duration: 0
+                });
+
+                // PHASE 2: BATCH WRite (Crash Safety)
+                const uid = state.authState.user?.id;
+                if (uid) {
+                    // Optimized: Only buffers, sends every 30s
+                    FirestoreService.bufferSessionUpdate(uid, {
+                        ...state.activeSession,
+                        segments
+                    });
+                }
+
+                return {
+                    activeSession: {
+                        ...state.activeSession,
+                        segments
+                    }
+                };
+            }),
 
             // --- ADMIN SLICE INIT ---
             students: [],
@@ -219,21 +341,95 @@ export const useStore = create<SystemState>()(
             }),
 
             deleteSubject: (id: string) => set((state) => {
-                // FIRESTORE SYNC (Recursive & Atomic)
+                // 1. ACTIVE SESSION GUARD
+                // If the user is currently studying this subject, FORCE STOP.
+                let nextActiveSession = state.activeSession;
+                let nextTerminationState = state.terminationState;
+
+                if (state.activeSession && state.activeSession.subjectId === id) {
+                    console.warn("[Store] ⚠️ Active Session belongs to deleted subject. Terminating...");
+
+                    // Force End (Simulated)
+                    // We can't call get().endActiveSession here easily inside a set reducer cleanly if we want atomic state update.
+                    // So we manually teardown.
+                    nextActiveSession = null;
+                    nextTerminationState = {
+                        reason: 'SUBJECT_DELETED',
+                        message: 'Session ended because the subject was deleted.',
+                        severity: 'warning'
+                    };
+                }
+
+                // 2. FILTER DATA (Zero Residue)
+                const remainingSubjects = state.subjects.filter(s => s && s.id !== id);
+                const remainingLectures = state.lectures.filter(l => l && l.subjectId !== id);
+                const remainingSessions = state.sessions.filter(s => s && s.subjectId !== id);
+
+                // 3. RECALCULATE METRICS (Pure State Derivation)
+
+                // A. Profile Metrics
+                const validSessions = remainingSessions.filter(s => s.isValidForMetrics);
+                const nextTotalSessions = validSessions.length;
+
+                // Recalc Learning Phase
+                const nextLearningPhase = (nextTotalSessions >= 3 ? 'ADAPTIVE' :
+                    (nextTotalSessions >= 1 ? 'NOVICE' : 'INIT')) as 'INIT' | 'NOVICE' | 'ADAPTIVE';
+
+                // Recalc Cumulative Index (Simple Average of VALID sessions)
+                const totalIndex = validSessions.reduce((acc, s) => acc + (s.cognitiveCost || 0), 0);
+                const nextCumulativeIndex = validSessions.length > 0
+                    ? parseFloat((totalIndex / validSessions.length).toFixed(2))
+                    : 0; // Default to 0 if no history
+
+                const nextProfile = {
+                    ...state.profile,
+                    totalSessions: nextTotalSessions,
+                    learningPhase: nextLearningPhase,
+                    cumulativeIndex: nextCumulativeIndex,
+                    // validSessions[validSessions.length - 1]?.date could be used for lastSessionDate logic if needed
+                };
+
+                // B. Daily Load (Today)
+                const todayStr = new Date().toISOString().split('T')[0]; // simple ISO date
+                // Note: state.dailyLoad.date is usually "YYYY-MM-DD"
+                // Let's rely on session date parsing safety
+                const todaySessions = remainingSessions.filter(s => s.date && s.date.startsWith(todayStr));
+
+                const todayCost = todaySessions.reduce((acc, s) => acc + (s.cognitiveCost || 0), 0);
+
+                let nextStatus: DailyLoad['status'] = 'Safe';
+                if (todayCost > 10) nextStatus = 'Risk';
+                else if (todayCost > 8) nextStatus = 'Warning';
+
+                const nextDailyLoad = {
+                    ...state.dailyLoad, // Keep date
+                    totalCognitiveCost: todayCost,
+                    status: nextStatus
+                };
+
+                // 4. ATOMIC CLOUD SYNC
                 const user = state.authState.user;
                 if (state.authState.status === 'AUTHENTICATED' && user) {
-                    // Update Snapshot Stats (Decrease count potentially, or just touch)
-                    const nextSnapshot = {
-                        profile: state.profile,
-                        dailyLoad: state.dailyLoad
+                    // Prepare Snapshot
+                    const snapshot = {
+                        profile: nextProfile,
+                        dailyLoad: nextDailyLoad
                     };
-                    FirestoreService.deleteSubjectRecursive(user.id, id, nextSnapshot);
+
+                    // Exec Deletion + Snapshot Update
+                    FirestoreService.deleteSubjectRecursive(user.id, id, snapshot);
                 }
 
                 return {
-                    subjects: state.subjects.filter(s => s.id !== id),
-                    lectures: state.lectures.filter(l => l.subjectId !== id),
-                    sessions: state.sessions.filter(s => s.subjectId !== id)
+                    subjects: remainingSubjects,
+                    lectures: remainingLectures,
+                    sessions: remainingSessions,
+                    profile: nextProfile,
+                    dailyLoad: nextDailyLoad,
+
+                    // Apply Active Session Teardown if triggered
+                    activeSession: nextActiveSession,
+                    terminationState: nextTerminationState
                 };
             }),
 
@@ -291,11 +487,14 @@ export const useStore = create<SystemState>()(
                 // but here we just accumulate.
                 const newCost = state.dailyLoad.totalCognitiveCost + session.cognitiveCost;
 
-                // 3. Determine Risk Status (Simple check, complex logic in CognitiveLoadEngine)
-                // This is a naive safeguard. Real status is set by Engine before passing here.
+                // 4. Determine Risk Status (Scaled 0-10)
+                // Old: >100 Risk, >80 Warning
+                // New: >10 Risk, >8 Warning
                 let status: DailyLoad['status'] = 'Safe';
-                if (newCost > 100) status = 'Risk';
-                else if (newCost > 80) status = 'Warning';
+                // Assuming typical daily capacity is ~10-20 "units" now? 
+                // Using 10 as the new 100.
+                if (newCost > 10) status = 'Risk';
+                else if (newCost > 8) status = 'Warning';
 
                 // FIRESTORE SYNC (Atomic Snapshot Strategy)
                 const user = state.authState.user;
@@ -362,33 +561,71 @@ export const useStore = create<SystemState>()(
 
             setProfile: (profile) => set(() => ({ profile })),
 
-            // --- REMOTE TERMINATION STATE ---
-            terminationState: null as { reason: string; message: string; severity?: 'warning' | 'info' } | null,
-
             // --- ACTIVE SESSION ACTIONS ---
-            startActiveSession: (lectureId, durationMinutes, subjectId) => set(() => ({
-                activeSession: {
-                    lectureId,
-                    subjectId, // Explicitly stored
-                    startTime: Date.now(),
-                    originalDuration: durationMinutes,
-                    pausedAt: null, // Start running
-                    totalPausedTime: 0,
-                    isActive: true
-                },
-                // PROBLEM 2 FIX: CLEAR TERMINATION STATE
-                // New session = Clean slate. Historical bans must not block new attempts.
-                terminationState: null,
-                // Also clear any legacy error
-                adminError: null
-            })),
+            startActiveSession: (lectureId, durationMinutes, subjectId) => set((state) => {
+                // [HARD GUARD] Prevent Duplicate Sessions
+                if (state.activeSession) {
+                    console.warn("[Store] ⚠️ Attempted to start session while one exists. Aborted.");
+                    return {};
+                }
+
+                console.log("[Store] Starting Active Session:", lectureId);
+                return {
+                    activeSession: {
+                        id: crypto.randomUUID(), // NEW: Crash Rescue Identity
+                        lectureId,
+                        subjectId, // Explicitly stored
+                        startTime: Date.now(),
+                        originalDuration: durationMinutes,
+                        expectedDuration: durationMinutes, // [FIX] Passed from UI/Orchestrator
+                        pausedAt: null, // Start running
+                        totalPausedTime: 0,
+                        isActive: true,
+                        isAutoPaused: false,
+                        segments: [], // Start fresh
+                    },
+                    // SESSION GATE: Creation Grace Window
+                    creationWindowUntil: Date.now() + 5000, // 5 seconds
+                    isServerConfirmedSession: false, // Becomes true after START API confirms
+                    // PROBLEM 2 FIX: CLEAR TERMINATION STATE
+                    // New session = Clean slate. Historical bans must not block new attempts.
+                    terminationState: null,
+                    // Also clear any legacy error
+                    adminError: null
+                };
+            }),
+
+            restoreSessionFromRTDB: (session) => set((state) => {
+                console.log("[Store] Restoring Session from RTDB Persistence:", session.sessionId);
+                return {
+                    activeSession: {
+                        id: session.sessionId,
+                        lectureId: session.lectureId,
+                        subjectId: session.subjectId,
+                        startTime: session.startedAt,
+                        originalDuration: session.expectedDuration || 60,
+                        expectedDuration: session.expectedDuration || 60,
+                        pausedAt: null,
+                        totalPausedTime: 0,
+                        isActive: true,
+                        isAutoPaused: false,
+                        segments: [],
+                    },
+                    // SESSION GATE: Server-confirmed session
+                    isServerConfirmedSession: true, // Restored = Server validated
+                    creationWindowUntil: 0, // No grace window needed for restored sessions
+                    terminationState: null,
+                    adminError: null
+                };
+            }),
 
             pauseActiveSession: () => set((state) => {
                 if (!state.activeSession || state.activeSession.pausedAt) return {};
                 return {
                     activeSession: {
                         ...state.activeSession,
-                        pausedAt: Date.now()
+                        pausedAt: Date.now(),
+                        isAutoPaused: false // Manual override resets auto flag
                     }
                 };
             }),
@@ -400,61 +637,132 @@ export const useStore = create<SystemState>()(
                     activeSession: {
                         ...state.activeSession,
                         pausedAt: null,
-                        totalPausedTime: state.activeSession.totalPausedTime + pauseDuration
+                        totalPausedTime: state.activeSession.totalPausedTime + pauseDuration,
+                        isAutoPaused: false // Reset flag
                     }
                 };
             }),
 
-            endActiveSession: (penalty = false, isRemoteKill = false, terminationPayload) => set((state) => {
-                console.log("[STORE] endActiveSession triggered.", { active: !!state.activeSession, penalty, isRemoteKill, hasPayload: !!terminationPayload });
+            autoPauseSession: () => set((state) => {
+                // Only pause if not already paused
+                if (!state.activeSession || state.activeSession.pausedAt) return {};
+                console.log("[Focus] System Auto-Pausing Session");
+                return {
+                    activeSession: {
+                        ...state.activeSession,
+                        pausedAt: Date.now(),
+                        isAutoPaused: true // MARKED AS SYSTEM PAUSE
+                    }
+                };
+            }),
 
-                // REMOTE KILL: Immediate Reset (Server has already handled data)
+            autoResumeSession: () => set((state) => {
+                // Only resume if it WAS auto-paused. Respect manual pauses.
+                if (!state.activeSession || !state.activeSession.pausedAt || !state.activeSession.isAutoPaused) return {};
+
+                console.log("[Focus] System Auto-Resuming Session");
+                const pauseDuration = Date.now() - state.activeSession.pausedAt;
+                return {
+                    activeSession: {
+                        ...state.activeSession,
+                        pausedAt: null,
+                        totalPausedTime: state.activeSession.totalPausedTime + pauseDuration,
+                        isAutoPaused: false // Reset flag
+                    }
+                };
+            }),
+
+            // --- ADMIN CONTROLS ---
+            adminLiveMonitoring: false, // Default OFF for cost safety
+            setAdminMonitoring: (enabled: boolean) => set({ adminLiveMonitoring: enabled }),
+
+            endActiveSession: (penalty = false, isRemoteKill = false, terminationPayload): StudySession | null => {
+                console.log("[STORE] endActiveSession triggered.");
+
+                // REMOTE KILL: Immediate Reset
                 if (isRemoteKill) {
-                    return {
-                        activeSession: null,
-                        terminationState: terminationPayload || null
-                    };
+                    set({ activeSession: null, terminationState: terminationPayload || null });
+                    return null;
                 }
 
-                if (!state.activeSession) return {};
+                const state = get();
+                if (!state.activeSession) return null;
+
+                // GLOBAL PRE-CHECK (The Hard Abort)
+                if (
+                    state.activeSession.endedBy === 'ADMIN' ||
+                    state.activeSession.endedBy === 'SYSTEM' ||
+                    state.activeSession.isValidForMetrics === false ||
+                    state.activeSession.status === 'FORCED_END' ||
+                    state.activeSession.status === 'INTERRUPTED'
+                ) {
+                    console.warn("[STORE] 🛑 Hard Abort: Session already terminated externally. Skipping completion logic.");
+                    set({ activeSession: null });
+                    return null;
+                }
 
                 const now = Date.now();
-                // 1. Calculate net duration
+
+                // 1. Finalize Last Segment
+                const segments = [...state.activeSession.segments];
+                const lastSegment = segments.length > 0 ? segments[segments.length - 1] : null;
+                if (lastSegment && !lastSegment.endTime) {
+                    lastSegment.endTime = now;
+                    lastSegment.duration = now - lastSegment.startTime;
+                }
+
+                // 2. Compute Net Duration (Excluding Pause)
                 let netDuration = now - state.activeSession.startTime;
                 if (state.activeSession.pausedAt) {
                     netDuration -= (now - state.activeSession.pausedAt);
                 }
                 netDuration -= state.activeSession.totalPausedTime;
-                const actualMinutes = Math.max(1, Math.round(netDuration / 60000));
 
-                // 2. Fetch Context (Lecture/Subject)
+                const actualMinutes = Math.round(netDuration / 60000);
+
+                // 1-Minute Rule: Discard phantom sessions (< 1 min)
+                if (actualMinutes < 1) {
+                    console.warn("[Store] ⚠️ Session duration is 0 min. Discarding phantom session.");
+                    set({ activeSession: null });
+                    return null;
+                }
+
+                const finalDuration = Math.max(1, actualMinutes);
+
+                // 3. Compute Collection Rate (FORENSIC)
+                const totalSegmentDuration = segments.reduce((acc, s) => acc + s.duration, 0);
+                const productiveDuration = segments
+                    .filter(s => s.type === 'ACTIVE' || s.type === 'TOOL')
+                    .reduce((acc, s) => acc + s.duration, 0);
+
+                const collectionRate = totalSegmentDuration > 0
+                    ? Math.round((productiveDuration / totalSegmentDuration) * 100)
+                    : 0;
+
+                // 4. Fetch Context
                 const lecture = state.lectures.find(l => l.id === state.activeSession?.lectureId);
                 if (!lecture) {
-                    console.error("CRITICAL: Lecture not found for active session.");
-                    return { activeSession: null };
+                    set({ activeSession: null });
+                    return null;
                 }
 
-                // 3. EXECUTE COGNITIVE ENGINE (The wiring)
-                let metrics = CognitiveEngine.calculate({
-                    lectureDuration: lecture.duration,
-                    actualDuration: actualMinutes,
-                    relativeDifficulty: lecture.relativeDifficulty,
-                    studentIndex: lecture.cognitiveIndex || null
-                });
+                // 5. Cognitive Engine (MASTER PROMPT LOGIC)
+                const evaluation = CognitiveLoadEngine.evaluateSession(
+                    finalDuration,
+                    state.activeSession.expectedDuration || (lecture.duration * 2),
+                    lecture.duration,
+                    lecture.relativeDifficulty
+                );
 
-                // PENALTY OVERRIDE (Forced Close)
+                const isValidForMetrics = !penalty && evaluation.isValid;
+
                 if (penalty) {
-                    metrics = {
-                        ...metrics,
-                        performanceGrade: 'C', // "Least Grade C"
-                        performanceIndex: 0,   // "Failure"
-                        cognitiveLoadIndex: 100 // "Maximum Penalty"
-                    };
+                    evaluation.performanceGrade = 'D';
+                    evaluation.cognitiveLoadIndex = 0;
+                    evaluation.isValid = false;
                 }
 
-                console.log("[STORE] Cognitive Metrics Calculated:", metrics);
-
-                // 4. Construct Final Session Record
+                // 6. Construct Final Record
                 const newSession: StudySession = {
                     id: crypto.randomUUID(),
                     lectureId: lecture.id,
@@ -463,26 +771,39 @@ export const useStore = create<SystemState>()(
                     date: new Date().toISOString(),
                     startTime: state.activeSession.startTime,
                     endTime: now,
-                    status: penalty ? 'INTERRUPTED' : (actualMinutes < 5 ? 'INTERRUPTED' : 'COMPLETED'),
+                    status: penalty ? 'INTERRUPTED' : (evaluation.isValid ? 'COMPLETED' : 'INTERRUPTED'),
 
-                    // PERSISTED METRICS
-                    expectedDuration: metrics.expectedStudyTimeMinutes,
-                    actualDuration: actualMinutes,
-                    cognitiveCost: metrics.cognitiveLoadIndex,
-                    performanceIndex: metrics.performanceIndex,
+                    expectedDuration: state.activeSession.expectedDuration || (lecture.duration * 2),
+                    actualDuration: finalDuration,
+                    cognitiveCost: evaluation.cognitiveLoadIndex,
+                    performanceGrade: evaluation.performanceGrade,
+                    isValid: evaluation.isValid,
+                    isValidForMetrics: isValidForMetrics,
+                    endedBy: penalty ? 'SYSTEM' : 'USER',
                     focusPerformance: penalty ? 0 : 100,
+
+                    // NEW FORENSIC DATA
+                    segments: segments,
+                    collectionRate: collectionRate
                 };
 
-                // 5. UPDATE LECTURE STATE (Persistence of Result)
+                // 7. Calculate New Cumulative Index (Rolling Window)
+                const newCumulativeIndex = isValidForMetrics ? CognitiveLoadEngine.computeNewCumulativeIndex(
+                    state.profile.cumulativeIndex || 5.0,
+                    evaluation.cognitiveLoadIndex,
+                    state.sessions
+                ) : (state.profile.cumulativeIndex || 5.0);
+
+                // 8. UPDATE LECTURE STATE (Persistence of Result)
                 const updatedLectures = state.lectures.map(l => {
                     if (l.id === lecture.id) {
                         return {
                             ...l,
                             status: 'Mastered',
-                            cognitiveIndex: metrics.performanceIndex,
-                            grade: metrics.performanceGrade,
+                            cognitiveIndex: evaluation.cognitiveLoadIndex,
+                            grade: evaluation.performanceGrade,
                             lastRevision: new Date().toISOString(),
-                            stability: Math.min(100, l.stability + 10)
+                            stability: Math.min(100, l.stability + (isValidForMetrics ? 10 : 0))
                         } as Lecture;
                     }
                     return l;
@@ -491,20 +812,22 @@ export const useStore = create<SystemState>()(
                 // 6. FIRESTORE SYNC (The Missing Piece)
                 const user = state.authState.user;
                 if (state.authState.status === 'AUTHENTICATED' && user) {
-                    // Prepare Snapshot
+                    const nextTotalSessions = isValidForMetrics ? state.profile.totalSessions + 1 : state.profile.totalSessions;
+                    const nextLearningPhase = isValidForMetrics ? (
+                        (nextTotalSessions >= 3 ? 'ADAPTIVE' : (nextTotalSessions >= 1 ? 'NOVICE' : 'INIT'))
+                    ) : state.profile.learningPhase;
+
                     const nextProfile = {
                         ...state.profile,
-                        totalSessions: state.profile.totalSessions + 1,
-                        learningPhase: (state.profile.totalSessions + 1) >= 3 ? 'ADAPTIVE' :
-                            (state.profile.totalSessions + 1) >= 1 ? 'NOVICE' : 'INIT',
+                        totalSessions: nextTotalSessions,
+                        learningPhase: nextLearningPhase,
+                        cumulativeIndex: newCumulativeIndex,
                         lastSessionDate: new Date().toISOString()
                     };
 
                     const nextDailyLoad = {
                         ...state.dailyLoad,
-                        totalCognitiveCost: state.dailyLoad.totalCognitiveCost + metrics.cognitiveLoadIndex,
-                        // Recalculate status simply here or rely on registerSession logic? 
-                        // For now, simple accumulation. Real guard logic is elsewhere.
+                        totalCognitiveCost: isValidForMetrics ? state.dailyLoad.totalCognitiveCost + evaluation.cognitiveLoadIndex : state.dailyLoad.totalCognitiveCost,
                     };
 
                     const snapshot = {
@@ -522,23 +845,32 @@ export const useStore = create<SystemState>()(
 
                 console.log("[STORE] Session Persisted Locally & Cloud.");
 
-                return {
+                // GUARD: INCREMENT LOCAL STATE ONLY IF VALID
+                const nextTotalSessions = isValidForMetrics ? state.profile.totalSessions + 1 : state.profile.totalSessions;
+                const nextLearningPhase = isValidForMetrics ? (
+                    (nextTotalSessions >= 3 ? 'ADAPTIVE' : (nextTotalSessions >= 1 ? 'NOVICE' : 'INIT'))
+                ) : state.profile.learningPhase;
+
+                set({
                     sessions: [...state.sessions, newSession],
                     lectures: updatedLectures,
                     activeSession: null,
                     dailyLoad: {
                         ...state.dailyLoad,
-                        totalCognitiveCost: state.dailyLoad.totalCognitiveCost + metrics.cognitiveLoadIndex
+                        totalCognitiveCost: isValidForMetrics ? state.dailyLoad.totalCognitiveCost + evaluation.cognitiveLoadIndex : state.dailyLoad.totalCognitiveCost
                     },
                     profile: {
                         ...state.profile,
-                        totalSessions: state.profile.totalSessions + 1,
-                        learningPhase: (state.profile.totalSessions + 1) >= 3 ? 'ADAPTIVE' :
-                            (state.profile.totalSessions + 1) >= 1 ? 'NOVICE' : 'INIT',
+                        totalSessions: nextTotalSessions,
+                        learningPhase: nextLearningPhase,
+                        cumulativeIndex: newCumulativeIndex,
                         lastSessionDate: new Date().toISOString()
                     }
-                };
-            }),
+                });
+
+                // RETURN THE NEW SESSION
+                return newSession;
+            },
 
             deleteLecture: (lectureId) => set((state) => ({
                 lectures: state.lectures.filter(l => l.id !== lectureId),
@@ -578,6 +910,54 @@ export const useStore = create<SystemState>()(
 
                         const userData = await FirestoreService.loadUserData(result.user.id);
                         if (userData) {
+                            // [DATA MIGRATION for 0-10 Scale]
+                            // Sanitize Sessions
+                            const sanitizedSessions = (userData.sessions || []).map(s => {
+                                let changed = false;
+                                const originalCost = s.cognitiveCost;
+
+                                // Sanitize Cost
+                                const newCost = sanitize(originalCost);
+
+                                if (newCost !== originalCost) changed = true;
+
+                                // STRICT REMOVAL of Forbidden Fields
+                                // Check if forbidden fields exist
+                                if ('performanceIndex' in s || 'cognitiveIndex' in s) {
+                                    changed = true;
+                                }
+
+                                if (changed) {
+                                    // Return CLEAN object
+                                    const { performanceIndex, cognitiveIndex, ...rest } = s as any;
+                                    return {
+                                        ...rest,
+                                        cognitiveCost: newCost
+                                    };
+                                }
+                                return s;
+                            });
+
+                            // Sanitize Profile
+                            let sanitizedProfile = { ...(userData.stateSnapshot?.profile || (userData as any).profile || {}) };
+                            if (sanitizedProfile.cumulativeIndex !== undefined) {
+                                sanitizedProfile.cumulativeIndex = sanitize(sanitizedProfile.cumulativeIndex);
+                            }
+
+                            // Sanitize Daily Load
+                            let sanitizedDailyLoad = { ...(userData.stateSnapshot?.dailyLoad || (userData as any).dailyLoad || {}) };
+                            if (sanitizedDailyLoad.totalCognitiveCost !== undefined) {
+                                let safeDailyCost = sanitizedDailyLoad.totalCognitiveCost;
+                                if (safeDailyCost > 50) safeDailyCost = safeDailyCost / 10; // Heuristic for legacy sums
+                                sanitizedDailyLoad.totalCognitiveCost = sanitize(safeDailyCost);
+
+                                // Recalc status based on corrected total
+                                if (sanitizedDailyLoad.totalCognitiveCost > 10) sanitizedDailyLoad.status = 'Risk';
+                                else if (sanitizedDailyLoad.totalCognitiveCost > 8) sanitizedDailyLoad.status = 'Warning';
+                                else sanitizedDailyLoad.status = 'Safe';
+                            }
+
+
                             set((state) => {
                                 // CRITICAL FIX: Merge persisted identity (completed flag) into AuthState
                                 const updatedUser = state.authState.user && userData.identityProfile
@@ -637,11 +1017,11 @@ export const useStore = create<SystemState>()(
                                     console.log("[Store] Hydrating from Snapshot (User Truth)");
                                     return {
                                         authState: { ...state.authState, user: updatedUser }, // Ensure AuthState is updated
-                                        profile: { ...state.profile, ...userData.stateSnapshot.profile },
-                                        dailyLoad: { ...state.dailyLoad, ...userData.stateSnapshot.dailyLoad },
+                                        profile: { ...state.profile, ...sanitizedProfile },
+                                        dailyLoad: { ...state.dailyLoad, ...sanitizedDailyLoad },
                                         subjects: userData.subjects.length > 0 ? userData.subjects : state.subjects,
                                         lectures: userData.lectures.length > 0 ? userData.lectures : state.lectures,
-                                        sessions: userData.sessions.length > 0 ? userData.sessions : state.sessions
+                                        sessions: sanitizedSessions.length > 0 ? sanitizedSessions : (userData.sessions || state.sessions)
                                     };
                                 }
 
@@ -659,7 +1039,7 @@ export const useStore = create<SystemState>()(
                                 if (result.user) {
                                     FirestoreService.saveStateSnapshot(result.user.id, {
                                         profile: healedProfile,
-                                        dailyLoad: state.dailyLoad // Keep current load or 0 if fresh
+                                        dailyLoad: sanitizedDailyLoad // Keep current load or 0 if fresh
                                     });
                                 }
 
@@ -668,7 +1048,7 @@ export const useStore = create<SystemState>()(
                                     profile: healedProfile,
                                     subjects: userData.subjects.length > 0 ? userData.subjects : state.subjects,
                                     lectures: userData.lectures.length > 0 ? userData.lectures : state.lectures,
-                                    sessions: userData.sessions.length > 0 ? userData.sessions : state.sessions
+                                    sessions: sanitizedSessions.length > 0 ? sanitizedSessions : state.sessions
                                 } as any;
                             });
                             console.log("[Store] Hydrated from Firestore", userData);
@@ -725,6 +1105,7 @@ export const useStore = create<SystemState>()(
                     // Clean Admin
                     selectedStudent: null,
                     adminError: null,
+                    isAdminMode: false,
 
                     // Safety
                     terminationState: null
@@ -839,15 +1220,39 @@ export const useStore = create<SystemState>()(
             },
 
             openAuthModal: (mode = 'LOGIN', onSuccess) => set({ authModal: { isOpen: true, mode, onSuccess } }),
-            closeAuthModal: () => set((state) => ({ authModal: { ...state.authModal, isOpen: false, onSuccess: undefined } }))
+            closeAuthModal: () => set((state) => ({ authModal: { ...state.authModal, isOpen: false, onSuccess: undefined } })),
+
+            healAccount: async () => {
+                const uid = get().authState.user?.id || get().ownerUid;
+                const authUser = get().authState.user;
+                if (!authUser) return;
+
+                console.log("[Store] Starting Account Healing Process...");
+
+                try {
+                    await FirestoreService.healUserMetrics(authUser.id);
+
+                    // Clear Local Storage
+                    if (typeof window !== 'undefined') {
+                        localStorage.removeItem('academic-system-storage');
+
+                        // Force Purge Flag update to prevent stale reads
+                        localStorage.setItem('academic-system-storage-purged-v2', 'true');
+
+                        console.log("[Store] Storage purged. Reloading...");
+                        window.location.reload();
+                    }
+                } catch (e) {
+                    console.error("[Store] Healing failed:", e);
+                }
+            }
         }),
         {
             name: 'academic-system-storage', // Key in localStorage
             storage: createJSONStorage(() => localStorage), // Persist to browser
             partialize: (state) => ({
                 // PHASE 4: PERSISTENCE SAFETY
-                // Whitelist ONLY infrastructure state.
-                // ACADEMIC DATA IS MEMORY-ONLY (Relies on Firestore Hydration)
+                // Whitelist infrastructure state + ACTIVE SESSION
 
                 // 1. Identity & Auth
                 ownerUid: state.ownerUid,
@@ -858,6 +1263,12 @@ export const useStore = create<SystemState>()(
 
                 // 3. Transient UI
                 authModal: { ...state.authModal, onSuccess: undefined },
+
+                // 4. ACTIVE SESSION (CRITICAL FOR SESSION LOCK)
+                activeSession: state.activeSession,
+                terminationState: state.terminationState,
+                isServerConfirmedSession: state.isServerConfirmedSession,
+                creationWindowUntil: state.creationWindowUntil,
 
                 // EXPLICITLY OMIT: subjects, lectures, sessions, profile, dailyLoad
                 // This ensures F5 reload triggers a fresh fetch/listener via RootGate,

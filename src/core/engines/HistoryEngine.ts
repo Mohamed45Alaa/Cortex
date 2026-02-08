@@ -9,7 +9,7 @@ export interface StudyRecord {
     durationMinutes: number;
     difficulty: number;
     grade?: string; // e.g. 'A+', 'B'
-    cognitiveIndex?: number; // 0-10
+    cognitiveCost: number; // 0-10
     status: 'COMPLETED' | 'PENDING' | 'IN_PROGRESS';
     dateMeta: {
         fullDate: string; // YYYY-MM-DD
@@ -91,8 +91,8 @@ export const HistoryEngine = {
                 itemName: itemName,
                 durationMinutes: session.actualDuration || 0,
                 difficulty: 5, // Default
-                grade: calculateGrade(session.performanceIndex || 0),
-                cognitiveIndex: (session.performanceIndex || 0) / 10,
+                grade: calculateGrade(session.cognitiveCost),
+                cognitiveCost: session.cognitiveCost,
                 status: 'COMPLETED',
                 dateMeta: meta,
                 rawDate: session.date || dateVal.toISOString()
@@ -127,7 +127,7 @@ export const HistoryEngine = {
                 durationMinutes: lecture.duration,
                 difficulty: lecture.relativeDifficulty,
                 grade: lecture.grade,
-                cognitiveIndex: lecture.cognitiveIndex,
+                cognitiveCost: lecture.relativeDifficulty, // Use Relative Difficulty as proxy for Lecture Cost
                 status: status,
                 dateMeta: meta,
                 rawDate: dateStr
@@ -243,15 +243,15 @@ function isDateInRange(target: Date, start: Date, end: Date) {
     return target >= start && target <= end;
 }
 
-function calculateGrade(index: number): string {
-    // Index is 0-100 (PerformanceIndex)
-    const val = index / 10; // Convert to 0-10
-    if (val >= 9.7) return 'A+';
-    if (val >= 9.0) return 'A';
-    if (val >= 8.5) return 'B+';
-    if (val >= 8.0) return 'B';
-    if (val >= 7.5) return 'C+';
-    if (val >= 7.0) return 'C';
+function calculateGrade(cost: number): string {
+    // Cost is 0-10 (Low is Good)
+    const val = cost;
+    if (val <= 2.5) return 'A+';
+    if (val <= 4.0) return 'A';
+    if (val <= 6.0) return 'B+';
+    if (val <= 7.5) return 'B';
+    if (val <= 8.5) return 'C+';
+    if (val <= 9.5) return 'C';
     return 'D';
 }
 

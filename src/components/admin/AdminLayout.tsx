@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useStore } from '@/store/useStore';
 import { Users, BarChart3, Settings, Activity, GraduationCap, Clock, AlertTriangle } from 'lucide-react';
@@ -6,11 +6,12 @@ import { useState, useEffect } from 'react';
 import { StudentsTable } from './StudentsTable';
 import { StudentInspector } from './StudentInspector';
 
+
 import { AdminMetricsService } from '@/core/services/AdminMetricsService';
 import { UserProfileWithMeta } from '@/core/types';
 
 export const AdminLayout = () => {
-    const { authState, selectedStudent, selectStudent } = useStore(); // Removed fetchStudents (handled by real-time service)
+    const { authState, selectedStudent, selectStudent, adminLiveMonitoring, setAdminMonitoring } = useStore(); // Added controls
     const [currentView, setCurrentView] = useState<'OVERVIEW' | 'STUDENTS' | 'SYSTEM'>('STUDENTS');
 
     // Real-Time Dashboard State
@@ -30,11 +31,30 @@ export const AdminLayout = () => {
 
     // Real-Time Subscription
     useEffect(() => {
+        if (!adminLiveMonitoring) {
+            console.log('[ADMIN] Monitoring DISABLED – all streams killed');
+            setDashboard({
+                students: [],
+                total: 0,
+                subscribed: 0,
+                onlineCount: 0,
+                stats: {
+                    onlineCount: 0,
+                    inSessionCount: 0,
+                    backgroundStudyingCount: 0,
+                    offlineRecentCount: 0,
+                    inactiveCount: 0
+                }
+            });
+            return;
+        }
+
+        console.log('[ADMIN] Monitoring ENABLED – streams attached');
         const unsub = AdminMetricsService.subscribeToDashboard((data) => {
             setDashboard(data);
         });
         return () => unsub();
-    }, []);
+    }, [adminLiveMonitoring]);
 
     // Navigation Items
     const navItems = [
@@ -99,95 +119,120 @@ export const AdminLayout = () => {
                         {navItems.find(n => n.id === currentView)?.label}
                     </h2>
                     <div className="flex items-center gap-4">
-                        <span className="text-xs text-emerald-400 px-2 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/10 flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            Live System
-                        </span>
-                        {/* Summary Pill for convenience */}
-                        <div className="hidden md:flex items-center gap-4 px-3 py-1 bg-white/5 rounded-full border border-white/5 text-xs text-slate-400">
-                            <span>Online: <strong className="text-emerald-400">{dashboard.onlineCount}</strong></span>
-                            <span className="w-px h-3 bg-white/10"></span>
-                            <span>Studying: <strong className="text-indigo-400">{dashboard.stats?.inSessionCount || 0}</strong></span>
-                            <span className="w-px h-3 bg-white/10"></span>
-                            <span>Inactive: <strong className="text-red-400">{dashboard.stats?.inactiveCount || 0}</strong></span>
-                            <span className="w-px h-3 bg-white/10"></span>
-                            <span>Total Web: <strong className="text-slate-200">{dashboard.total}</strong></span>
-                        </div>
+
+                        {/* LIVE MONITOR SWITCH */}
+                        <button
+                            onClick={() => setAdminMonitoring(!adminLiveMonitoring)}
+                            className={`text-xs px-3 py-1.5 rounded-full border transition-all flex items-center gap-2 ${adminLiveMonitoring
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                                }`}
+                        >
+                            <span className={`w-2 h-2 rounded-full ${adminLiveMonitoring ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`}></span>
+                            {adminLiveMonitoring ? 'Live Monitoring ON' : 'Monitoring Disabled'}
+                        </button>
+
+                        {/* Summary Pill for convenience - Only show if ON */}
+                        {adminLiveMonitoring && (
+                            <div className="hidden md:flex items-center gap-4 px-3 py-1 bg-white/5 rounded-full border border-white/5 text-xs text-slate-400">
+                                <span>Online: <strong className="text-emerald-400">{dashboard.onlineCount}</strong></span>
+                                <span className="w-px h-3 bg-white/10"></span>
+                                <span>Studying: <strong className="text-indigo-400">{dashboard.stats?.inSessionCount || 0}</strong></span>
+                                <span className="w-px h-3 bg-white/10"></span>
+                                <span>Inactive: <strong className="text-red-400">{dashboard.stats?.inactiveCount || 0}</strong></span>
+                                <span className="w-px h-3 bg-white/10"></span>
+                                <span>Total Web: <strong className="text-slate-200">{dashboard.total}</strong></span>
+                            </div>
+                        )}
                     </div>
                 </header>
 
                 {/* Content View */}
-                <div className="flex-1 p-8 overflow-hidden">
-                    {currentView === 'STUDENTS' && (
-                        <div className="flex flex-col gap-6 h-full">
-                            <StudentsTable students={dashboard.students} />
+                <div className="flex-1 p-8 overflow-hidden relative">
+                    {!adminLiveMonitoring ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-[#0B1120]/90 backdrop-blur-sm">
+                            <AlertTriangle size={48} className="text-amber-500/50 mb-4" />
+                            <h3 className="text-xl font-bold text-white mb-2">Monitoring Disabled</h3>
+                            <p className="text-slate-400 text-sm max-w-md text-center">
+                                Live data streams are disabled to reduce database read costs.
+                                <br />
+                                Enable <strong>Live Monitoring</strong> in the header to view real-time student activity.
+                            </p>
                         </div>
-                    )}
+                    ) : null}
 
-                    {currentView === 'OVERVIEW' && (
-                        <div className="flex flex-col gap-8">
-                            {/* 1. TOP STATS ROW */}
-                            <div className="grid grid-cols-4 gap-6">
-                                {/* CARD 1: ONLINE */}
-                                <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col gap-2 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                                        <Activity size={48} className="text-emerald-400" />
+                    <div className={!adminLiveMonitoring ? 'opacity-20 pointer-events-none filter blur-sm' : ''}>
+                        {currentView === 'STUDENTS' && (
+                            <div className="flex flex-col gap-6 h-full">
+                                <StudentsTable students={dashboard.students} />
+                            </div>
+                        )}
+
+                        {currentView === 'OVERVIEW' && (
+                            <div className="flex flex-col gap-8">
+                                {/* 1. TOP STATS ROW */}
+                                <div className="grid grid-cols-4 gap-6">
+                                    {/* CARD 1: ONLINE */}
+                                    <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col gap-2 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                                            <Activity size={48} className="text-emerald-400" />
+                                        </div>
+                                        <span className="text-sm font-bold text-emerald-300">Online Now</span>
+                                        <div className="text-4xl font-bold text-emerald-400 tracking-tight">{dashboard.stats?.onlineCount || 0}</div>
+                                        <div className="text-xs text-emerald-300/80 font-medium">Live on Platform</div>
                                     </div>
-                                    <span className="text-sm font-bold text-emerald-300">Online Now</span>
-                                    <div className="text-4xl font-bold text-emerald-400 tracking-tight">{dashboard.stats?.onlineCount || 0}</div>
-                                    <div className="text-xs text-emerald-300/80 font-medium">Live on Platform</div>
-                                </div>
 
-                                {/* CARD 2: STUDYING */}
-                                <div className="p-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex flex-col gap-2 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                                        <Users size={48} className="text-indigo-400" />
+                                    {/* CARD 2: STUDYING */}
+                                    <div className="p-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex flex-col gap-2 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                                            <Users size={48} className="text-indigo-400" />
+                                        </div>
+                                        <span className="text-sm font-bold text-indigo-300">Active Sessions</span>
+                                        <div className="text-4xl font-bold text-indigo-400 tracking-tight">{dashboard.stats?.inSessionCount || 0}</div>
+                                        <div className="text-xs text-indigo-300/80 font-medium">Focusing right now</div>
                                     </div>
-                                    <span className="text-sm font-bold text-indigo-300">Active Sessions</span>
-                                    <div className="text-4xl font-bold text-indigo-400 tracking-tight">{dashboard.stats?.inSessionCount || 0}</div>
-                                    <div className="text-xs text-indigo-300/80 font-medium">Focusing right now</div>
+
+                                    {/* CARD 3: OFFLINE (RECENT) */}
+                                    <div className="p-6 rounded-2xl bg-slate-900/50 border border-white/5 flex flex-col gap-2 relative overflow-hidden">
+                                        <span className="text-sm font-medium text-slate-400">Offline (Recent)</span>
+                                        <div className="text-4xl font-bold text-slate-300 tracking-tight">{dashboard.stats?.offlineRecentCount || 0}</div>
+                                        <div className="text-xs text-slate-500">Active &lt; 7 days</div>
+                                    </div>
+
+                                    {/* CARD 4: INACTIVE */}
+                                    <div className="p-6 rounded-2xl bg-red-500/5 border border-red-500/10 flex flex-col gap-2 relative overflow-hidden">
+                                        <span className="text-sm font-bold text-red-400">Inactive</span>
+                                        <div className="text-4xl font-bold text-red-500 tracking-tight">{dashboard.stats?.inactiveCount || 0}</div>
+                                        <div className="text-xs text-red-400/80">&gt; 7 Days Absent</div>
+                                    </div>
                                 </div>
 
-                                {/* CARD 3: OFFLINE (RECENT) */}
-                                <div className="p-6 rounded-2xl bg-slate-900/50 border border-white/5 flex flex-col gap-2 relative overflow-hidden">
-                                    <span className="text-sm font-medium text-slate-400">Offline (Recent)</span>
-                                    <div className="text-4xl font-bold text-slate-300 tracking-tight">{dashboard.stats?.offlineRecentCount || 0}</div>
-                                    <div className="text-xs text-slate-500">Active &lt; 7 days</div>
-                                </div>
-
-                                {/* CARD 4: INACTIVE */}
-                                <div className="p-6 rounded-2xl bg-red-500/5 border border-red-500/10 flex flex-col gap-2 relative overflow-hidden">
-                                    <span className="text-sm font-bold text-red-400">Inactive</span>
-                                    <div className="text-4xl font-bold text-red-500 tracking-tight">{dashboard.stats?.inactiveCount || 0}</div>
-                                    <div className="text-xs text-red-400/80">&gt; 7 Days Absent</div>
+                                {/* 2. SECONDARY STATS (Total/Subscribed) */}
+                                <div className="grid grid-cols-2 gap-6 w-1/2">
+                                    <div className="p-6 rounded-2xl bg-slate-900/30 border border-white/5 flex items-center justify-between">
+                                        <div>
+                                            <div className="text-sm text-slate-500">Total Registered</div>
+                                            <div className="text-2xl font-bold text-white">{dashboard.total}</div>
+                                        </div>
+                                        <Users size={24} className="text-slate-600" />
+                                    </div>
+                                    <div className="p-6 rounded-2xl bg-slate-900/30 border border-white/5 flex items-center justify-between">
+                                        <div>
+                                            <div className="text-sm text-slate-500">Premium Members</div>
+                                            <div className="text-2xl font-bold text-amber-400">{dashboard.subscribed}</div>
+                                        </div>
+                                        <GraduationCap size={24} className="text-amber-500/50" />
+                                    </div>
                                 </div>
                             </div>
-
-                            {/* 2. SECONDARY STATS (Total/Subscribed) */}
-                            <div className="grid grid-cols-2 gap-6 w-1/2">
-                                <div className="p-6 rounded-2xl bg-slate-900/30 border border-white/5 flex items-center justify-between">
-                                    <div>
-                                        <div className="text-sm text-slate-500">Total Registered</div>
-                                        <div className="text-2xl font-bold text-white">{dashboard.total}</div>
-                                    </div>
-                                    <Users size={24} className="text-slate-600" />
-                                </div>
-                                <div className="p-6 rounded-2xl bg-slate-900/30 border border-white/5 flex items-center justify-between">
-                                    <div>
-                                        <div className="text-sm text-slate-500">Premium Members</div>
-                                        <div className="text-2xl font-bold text-amber-400">{dashboard.subscribed}</div>
-                                    </div>
-                                    <GraduationCap size={24} className="text-amber-500/50" />
-                                </div>
+                        )}
+                        {currentView === 'SYSTEM' && (
+                            <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
+                                <Settings size={48} className="opacity-20" />
+                                <p>System Configuration</p>
                             </div>
-                        </div>
-                    )}
-                    {currentView === 'SYSTEM' && (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
-                            <Settings size={48} className="opacity-20" />
-                            <p>System Configuration</p>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </main>
 
@@ -200,3 +245,4 @@ export const AdminLayout = () => {
         </div>
     );
 };
+

@@ -1,8 +1,10 @@
-'use client';
-
-
-import RootGate from '../components/layout/RootGate';
+import AppGate from '@/components/layout/AppGate';
+import { GlobalSystemProviders } from '@/components/layout/GlobalSystemProviders';
 
 export default function Page() {
-    return <RootGate />;
+    return (
+        <GlobalSystemProviders>
+            <AppGate />
+        </GlobalSystemProviders>
+    );
 }

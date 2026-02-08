@@ -13,6 +13,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@playwright/test": "^1.58.2",
     "clsx": "^2.1.1",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.1",
@@ -21,6 +22,7 @@
     "framer-motion": "^12.26.2",
     "lucide-react": "^0.562.0",
     "next": "^16.1.1",
+    "playwright": "^1.58.2",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwind-scrollbar": "^4.0.2",

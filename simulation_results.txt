@@ -1,0 +1,102 @@
+| # | Dur | Diff | Act | Exp | Idx | Grd | Rolling | Mult | Note |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 45 | 3 | 137 | 119 | 5.5 | C+ | 5.5 | Neutral | Onboarding - Improving Speed |
+| 2 | 45 | 3 | 113 | 103 | 7 | B+ | 6.3 | Down (Efficient) | Onboarding - Improving Speed |
+| 3 | 45 | 4 | 113 | 108 | 6.9 | B | 6.5 | Neutral | Onboarding - Improving Speed |
+| 4 | 45 | 4 | 108 | 108 | 7.9 | B+ | 6.8 | Neutral | Onboarding - Improving Speed |
+| 5 | 45 | 4 | 103 | 108 | 7.9 | B+ | 7 | Neutral | Onboarding - Improving Speed |
+| 6 | 45 | 5 | 96 | 107 | 7.8 | B+ | 7.5 | Neutral | Onboarding - Improving Speed |
+| 7 | 45 | 5 | 91 | 107 | 7.8 | B+ | 7.7 | Neutral | Onboarding - Improving Speed |
+| 8 | 45 | 5 | 86 | 107 | 8.8 | A | 8 | Neutral | Onboarding - Improving Speed |
+| 9 | 45 | 6 | 83 | 111 | 8.6 | A | 8.2 | Neutral | Onboarding - Improving Speed |
+| 10 | 45 | 6 | 78 | 111 | 8.6 | A | 8.3 | Neutral | Onboarding - Improving Speed |
+| 11 | 60 | 8 | 240 | 160 | 3.3 | D | 7.4 | Up (Remedial) | High Difficulty Struggle |
+| 12 | 60 | 8 | 240 | 160 | 3.3 | D | 6.5 | Up (Remedial) | High Difficulty Struggle |
+| 13 | 60 | 8 | 252 | 168 | 3.3 | D | 5.4 | Up (Remedial) | High Difficulty Struggle |
+| 14 | 60 | 8 | 290 | 193 | 3.3 | D | 4.4 | Up (Remedial) | High Difficulty Struggle |
+| 15 | 60 | 8 | 290 | 193 | 3.3 | D | 3.3 | Up (Remedial) | High Difficulty Struggle |
+| 16 | 60 | 8 | 327 | 218 | 3.3 | D | 3.3 | Neutral | High Difficulty Struggle |
+| 17 | 60 | 8 | 327 | 218 | 3.3 | D | 3.3 | Neutral | High Difficulty Struggle |
+| 18 | 60 | 8 | 327 | 218 | 3.3 | D | 3.3 | Neutral | High Difficulty Struggle |
+| 19 | 60 | 8 | 327 | 218 | 3.3 | D | 3.3 | Neutral | High Difficulty Struggle |
+| 20 | 60 | 8 | 327 | 218 | 3.3 | D | 3.3 | Neutral | High Difficulty Struggle |
+| 21 | 30 | 5 | 29 | 98 | 7.9 | B+ | 4.2 | Down (Efficient) | Guard Test: Actual < Duration |
+| 22 | 30 | 5 | 27 | 86 | 7.9 | B+ | 5.1 | Down (Efficient) | Guard Test: Actual < Duration |
+| 23 | 30 | 5 | 27 | 86 | 7.9 | B+ | 6.1 | Down (Efficient) | Guard Test: Actual < Duration |
+| 24 | 30 | 5 | 27 | 75 | 7.9 | B+ | 7 | Down (Efficient) | Guard Test: Actual < Duration |
+| 25 | 30 | 5 | 21 | 71 | 7.9 | B+ | 7.9 | Down (Efficient) | Guard Test: Actual < Duration |
+| 26 | 30 | 5 | 23 | 71 | 7.9 | B+ | 7.9 | Neutral | Guard Test: Actual < Duration |
+| 27 | 30 | 5 | 25 | 71 | 7.9 | B+ | 7.9 | Neutral | Guard Test: Actual < Duration |
+| 28 | 30 | 5 | 24 | 71 | 7.9 | B+ | 7.9 | Neutral | Guard Test: Actual < Duration |
+| 29 | 30 | 5 | 20 | 71 | 7.9 | B+ | 7.9 | Neutral | Guard Test: Actual < Duration |
+| 30 | 30 | 5 | 25 | 71 | 7.9 | B+ | 7.9 | Neutral | Guard Test: Actual < Duration |
+| 31 | 45 | 4 | 93 | 103 | 7.9 | B+ | 7.9 | Neutral | Recovery Phase |
+| 32 | 45 | 4 | 93 | 103 | 7.9 | B+ | 7.9 | Neutral | Recovery Phase |
+| 33 | 45 | 4 | 93 | 103 | 7.9 | B+ | 7.9 | Neutral | Recovery Phase |
+| 34 | 45 | 4 | 93 | 103 | 7.9 | B+ | 7.9 | Neutral | Recovery Phase |
+| 35 | 45 | 4 | 93 | 103 | 7.9 | B+ | 7.9 | Neutral | Recovery Phase |
+| 36 | 45 | 4 | 93 | 103 | 7.9 | B+ | 7.9 | Neutral | Recovery Phase |
+| 37 | 45 | 4 | 93 | 103 | 7.9 | B+ | 7.9 | Neutral | Recovery Phase |
+| 38 | 45 | 4 | 93 | 103 | 7.9 | B+ | 7.9 | Neutral | Recovery Phase |
+| 39 | 45 | 4 | 93 | 103 | 7.9 | B+ | 7.9 | Neutral | Recovery Phase |
+| 40 | 45 | 4 | 93 | 103 | 7.9 | B+ | 7.9 | Neutral | Recovery Phase |
+| 41 | 60 | 7 | 126 | 154 | 8.4 | A | 8 | Neutral | Perfect Efficiency |
+| 42 | 60 | 7 | 126 | 154 | 8.4 | A | 8.1 | Neutral | Perfect Efficiency |
+| 43 | 60 | 7 | 126 | 154 | 8.4 | A | 8.2 | Neutral | Perfect Efficiency |
+| 44 | 60 | 7 | 126 | 154 | 8.4 | A | 8.3 | Neutral | Perfect Efficiency |
+| 45 | 60 | 7 | 126 | 154 | 8.4 | A | 8.4 | Neutral | Perfect Efficiency |
+| 46 | 60 | 7 | 126 | 154 | 8.4 | A | 8.4 | Neutral | Perfect Efficiency |
+| 47 | 60 | 7 | 126 | 154 | 8.4 | A | 8.4 | Neutral | Perfect Efficiency |
+| 48 | 60 | 7 | 126 | 154 | 8.4 | A | 8.4 | Neutral | Perfect Efficiency |
+| 49 | 60 | 7 | 126 | 154 | 8.4 | A | 8.4 | Neutral | Perfect Efficiency |
+| 50 | 60 | 7 | 126 | 154 | 8.4 | A | 8.4 | Neutral | Perfect Efficiency |
+| 51 | 90 | 6 | 127 | 222 | 8.6 | A | 8.4 | Neutral | Random Variance |
+| 52 | 75 | 6 | 109 | 185 | 8.6 | A | 8.5 | Neutral | Random Variance |
+| 53 | 20 | 4 | 37 | 41 | 7.9 | B+ | 8.4 | Neutral | Random Variance |
+| 54 | 60 | 4 | 69 | 137 | 8.9 | A | 8.5 | Neutral | Random Variance |
+| 55 | 51 | 10 | 190 | 130 | 3 | D | 7.4 | Up (Remedial) | Random Variance |
+| 56 | 36 | 6 | 48 | 89 | 8.6 | A | 7.4 | Neutral | Random Variance |
+| 57 | 77 | 10 | 223 | 219 | 6 | B | 6.9 | Neutral | Random Variance |
+| 58 | 45 | 7 | 117 | 122 | 7.5 | B+ | 6.8 | Neutral | Random Variance |
+| 59 | 88 | 7 | 136 | 238 | 8.4 | A | 6.7 | Neutral | Random Variance |
+| 60 | 84 | 1 | 202 | 176 | 7.3 | B+ | 7.6 | Down (Efficient) | Random Variance |
+| 61 | 120 | 8 | 351 | 319 | 6.3 | B | 7.1 | Neutral | Deep Work / Long Duration |
+| 62 | 120 | 8 | 351 | 319 | 6.3 | B | 7.2 | Neutral | Deep Work / Long Duration |
+| 63 | 120 | 8 | 351 | 319 | 6.3 | B | 6.9 | Neutral | Deep Work / Long Duration |
+| 64 | 120 | 8 | 370 | 336 | 6.3 | B | 6.5 | Neutral | Deep Work / Long Duration |
+| 65 | 120 | 8 | 370 | 336 | 6.3 | B | 6.3 | Neutral | Deep Work / Long Duration |
+| 66 | 120 | 8 | 370 | 336 | 6.3 | B | 6.3 | Neutral | Deep Work / Long Duration |
+| 67 | 120 | 8 | 370 | 336 | 6.3 | B | 6.3 | Neutral | Deep Work / Long Duration |
+| 68 | 120 | 8 | 370 | 336 | 6.3 | B | 6.3 | Neutral | Deep Work / Long Duration |
+| 69 | 120 | 8 | 370 | 336 | 6.3 | B | 6.3 | Neutral | Deep Work / Long Duration |
+| 70 | 120 | 8 | 370 | 336 | 6.3 | B | 6.3 | Neutral | Deep Work / Long Duration |
+| 71 | 15 | 2 | 2 | 33 | 0 | D | 6.3 | Neutral | INVALID: Invalid: Micro Session Failure |
+| 72 | 15 | 2 | 3 | 33 | 0 | D | 6.3 | Neutral | INVALID: Invalid: Micro Session Failure |
+| 73 | 15 | 2 | 4 | 33 | 7.9 | B+ | 6.6 | Neutral | Invalid: Micro Session Failure |
+| 74 | 15 | 2 | 2 | 33 | 0 | D | 6.6 | Neutral | INVALID: Invalid: Micro Session Failure |
+| 75 | 15 | 2 | 3 | 33 | 0 | D | 6.6 | Neutral | INVALID: Invalid: Micro Session Failure |
+| 76 | 15 | 2 | 2 | 33 | 0 | D | 6.6 | Neutral | INVALID: Invalid: Micro Session Failure |
+| 77 | 15 | 2 | 4 | 33 | 7.9 | B+ | 6.9 | Neutral | Invalid: Micro Session Failure |
+| 78 | 15 | 2 | 2 | 33 | 0 | D | 6.9 | Neutral | INVALID: Invalid: Micro Session Failure |
+| 79 | 15 | 2 | 3 | 33 | 0 | D | 6.9 | Neutral | INVALID: Invalid: Micro Session Failure |
+| 80 | 15 | 2 | 2 | 33 | 0 | D | 6.9 | Neutral | INVALID: Invalid: Micro Session Failure |
+| 81 | 60 | 5 | 150 | 150 | 7.8 | B+ | 7.2 | Neutral | Stability Check |
+| 82 | 60 | 5 | 143 | 143 | 7.8 | B+ | 7.5 | Neutral | Stability Check |
+| 83 | 60 | 5 | 143 | 143 | 7.8 | B+ | 7.8 | Neutral | Stability Check |
+| 84 | 60 | 5 | 143 | 143 | 7.8 | B+ | 7.8 | Neutral | Stability Check |
+| 85 | 60 | 5 | 143 | 143 | 7.8 | B+ | 7.8 | Neutral | Stability Check |
+| 86 | 60 | 5 | 143 | 143 | 7.8 | B+ | 7.8 | Neutral | Stability Check |
+| 87 | 60 | 5 | 143 | 143 | 7.8 | B+ | 7.8 | Neutral | Stability Check |
+| 88 | 60 | 5 | 143 | 143 | 7.8 | B+ | 7.8 | Neutral | Stability Check |
+| 89 | 60 | 5 | 143 | 143 | 7.8 | B+ | 7.8 | Neutral | Stability Check |
+| 90 | 60 | 5 | 143 | 143 | 7.8 | B+ | 7.8 | Neutral | Stability Check |
+| 91 | 50 | 6 | 118 | 124 | 7.6 | B+ | 7.8 | Neutral | Final Review |
+| 92 | 50 | 7 | 122 | 128 | 7.5 | B+ | 7.7 | Neutral | Final Review |
+| 93 | 50 | 4 | 108 | 114 | 7.9 | B+ | 7.7 | Neutral | Final Review |
+| 94 | 50 | 8 | 126 | 133 | 7.3 | B+ | 7.6 | Neutral | Final Review |
+| 95 | 50 | 8 | 126 | 133 | 7.3 | B+ | 7.5 | Neutral | Final Review |
+| 96 | 50 | 8 | 126 | 133 | 7.3 | B+ | 7.5 | Neutral | Final Review |
+| 97 | 50 | 4 | 108 | 114 | 7.9 | B+ | 7.5 | Neutral | Final Review |
+| 98 | 50 | 7 | 122 | 128 | 7.5 | B+ | 7.5 | Neutral | Final Review |
+| 99 | 50 | 6 | 118 | 124 | 7.6 | B+ | 7.5 | Neutral | Final Review |
+| 100 | 50 | 4 | 108 | 114 | 7.9 | B+ | 7.6 | Neutral | Final Review |

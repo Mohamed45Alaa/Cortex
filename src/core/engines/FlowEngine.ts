@@ -9,6 +9,7 @@ export type FlowState =
     | 'DASHBOARD_SUBJECT' // New: Detail View
     | 'DASHBOARD_SETTINGS' // New: Settings View
     | 'DASHBOARD_HISTORY' // New: History View
+    | 'DASHBOARD_TOOLS'   // New: Tools Section
     | 'DASHBOARD_INPUTS' // New: Academic Inputs Control Panel
     | 'DASHBOARD_ACCOUNT' // New: Identity Management
     | 'DASHBOARD_CONFIG' // New: Global System Configuration
@@ -19,6 +20,7 @@ export type FlowState =
     | 'REG_TYPE'
     | 'REG_DURATION'
     | 'REG_UNDERSTANDING'
+    | 'REG_MODE_SELECT'  // NEW: Study Mode Selection
     | 'REG_DEMAND'
     | 'CALIBRATION_FAMILIARITY'
     | 'CALIBRATION_FOCUS'
@@ -43,6 +45,7 @@ export interface FlowContext {
         duration: number; // minutes
         understanding: number;
         demand: string;
+        studyMode?: string;  // NEW: Selected study mode
     };
     currentSessionId?: string;
     feedbackMessage?: string;
@@ -96,7 +99,8 @@ export const FlowEngine = {
             // --- REGISTRATION FLOW ---
             case 'REG_TYPE': return 'REG_DURATION';
             case 'REG_DURATION': return 'REG_UNDERSTANDING';
-            case 'REG_UNDERSTANDING': return 'SUMMARY'; // Skipped REG_DEMAND
+            case 'REG_UNDERSTANDING': return 'REG_MODE_SELECT';  // NEW: Go to mode selection
+            case 'REG_MODE_SELECT': return 'SUMMARY';  // NEW: Then complete
             case 'REG_DEMAND': return 'SUMMARY';
 
             // --- STUDY FLOW ---
@@ -128,6 +132,7 @@ export const FlowEngine = {
             case 'REG_TYPE': return 'type_q';
             case 'REG_DURATION': return 'duration_q';
             case 'REG_UNDERSTANDING': return 'understanding_q';
+            case 'REG_MODE_SELECT': return 'mode_select_q';  // NEW
             case 'REG_DEMAND': return 'demand_q';
 
             case 'CALIBRATION_FAMILIARITY': return 'fam_q';

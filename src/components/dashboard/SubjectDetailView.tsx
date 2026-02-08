@@ -95,7 +95,7 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
                     className={styles.actionBtn}
                     onClick={() => onQuestionFlowStart('LECTURE_INTENT', subjectId)}
                 >
-                    <PlusCircle size={16} /> INJECT INPUT
+                    <PlusCircle size={16} /> Add Lecture
                 </button>
             </div>
 

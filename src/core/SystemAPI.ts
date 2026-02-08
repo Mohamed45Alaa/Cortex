@@ -1,8 +1,7 @@
 import { SystemOrchestrator } from './SystemOrchestrator';
 import { useStore } from '../store/useStore';
-import { Lecture, SubjectConfig, StudySession } from './types';
-import { TimePredictionEngine } from './engines/TimePredictionEngine';
-import { EndSessionEngine } from './engines/EndSessionEngine';
+import { CognitiveLoadEngine } from './engines/CognitiveLoadEngine';
+import { StudySession, Lecture, SubjectConfig } from './types';
 
 /**
  * ENGINEERING: PUBLIC SYSTEM API
@@ -57,9 +56,12 @@ export const SystemAPI = {
 
         if (!subject || !lecture) throw new Error("System Error: Subject context lost during session.");
 
-        // Re-calculate expectation to grade performance
-        // (We do this here to keep the API stateless, trusting the Engine's determinism)
-        const expectedDuration = TimePredictionEngine.predictDuration(lecture, profile, subject.config);
+        // Re-calculate expectation using MASTER ENGINE
+        const expectedDuration = CognitiveLoadEngine.calculateExpectedTime(
+            lecture.duration,
+            profile,
+            lecture.relativeDifficulty
+        );
 
         const endTime = Date.now();
         // Infer start time (minutes -> ms)
@@ -80,17 +82,15 @@ export const SystemAPI = {
             expectedDuration,
             actualDuration: data.actualDuration,
 
-            cognitiveCost: 0, // Will be calculated by Finalizer
-            performanceIndex: 0, // Will be calculated by EndSessionEngine
+            cognitiveCost: 0,
+            performanceGrade: 'C',
+            collectionRate: 0,
             focusPerformance: data.focusPerformance
         };
 
-        // Calculate Performance Index
-        const scoredSession = EndSessionEngine.evaluateSession(sessionBase, data.actualDuration);
-
-        // Atomic commit via Orchestrator
+        // Atomic commit via Orchestrator (orchestrator will handle grading)
         return SystemOrchestrator.finalizeSession(
-            scoredSession,
+            sessionBase,
             subject.config
         );
     },

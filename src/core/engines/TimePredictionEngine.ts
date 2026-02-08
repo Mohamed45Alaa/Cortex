@@ -30,7 +30,7 @@ export const TimePredictionEngine = {
         // Otherwise, use the Lecture's mastery index if available.
         const effectiveIndex = (profile.totalSessions === 0)
             ? 0
-            : (lecture.cognitiveIndex ?? null);
+            : (lecture.relativeDifficulty ?? null);
 
         // 2. Get Deterministic Base from Cognitive Engine (The "Truth")
         let projectedMinutes = CognitiveEngine.calculateExpectedStudyTime(

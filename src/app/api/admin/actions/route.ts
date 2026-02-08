@@ -19,12 +19,17 @@ export async function POST(req: NextRequest) {
         const db = adminApp.firestore();
         const rtdb = adminApp.database();
 
-        // Verify Token & Check Role
+        // Verify Token
         const decodedToken = await auth.verifyIdToken(idToken);
-        const role = decodedToken.role;
+        const adminUid = decodedToken.uid;
 
-        if (role !== 'ADMIN') {
-            console.error(`[API] Access Denied. User ${decodedToken.uid} role is ${role}`);
+        // STRICT: Verify Admin Role via Firestore (Source of Truth)
+        // Token claims can be stale, so we check the DB directly.
+        const adminProfileSnap = await db.collection('users').doc(adminUid).collection('profile').doc('main').get();
+        const adminData = adminProfileSnap.data();
+
+        if (!adminProfileSnap.exists || adminData?.role !== 'ADMIN') {
+            console.error(`[API] Access Denied. User ${adminUid} is NOT an Admin in Firestore.`);
             return NextResponse.json({ success: false, error: "Forbidden: insufficient permissions" }, { status: 403 });
         }
 
@@ -215,16 +220,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "Invalid Action" }, { status: 400 });
 
     } catch (error: any) {
-        console.error("[API] Admin Action Failed:", error);
+        console.error('[API ERROR]', error);
 
-        // Specific Error Mapping
-        if (error.code === 'auth/argument-error') {
-            return NextResponse.json({ success: false, error: "Invalid Auth Token Configuration" }, { status: 401 });
-        }
-        if (error.message && error.message.includes("Server Misconfiguration")) {
-            return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-        }
-
-        return NextResponse.json({ success: false, error: error.message || "Internal Server Error" }, { status: 500 });
+        return NextResponse.json(
+            {
+                success: false,
+                error: {
+                    message: error?.message || 'Internal Server Error',
+                    code: 'INTERNAL_ERROR'
+                }
+            },
+            { status: 500 }
+        );
     }
 }

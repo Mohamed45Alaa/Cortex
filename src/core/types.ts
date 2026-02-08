@@ -13,6 +13,7 @@ export type Difficulty = 'Easy' | 'Medium' | 'Hard';
 export type MentalLoad = 'Low' | 'Medium' | 'High';
 export type LectureType = 'Theory' | 'Practical' | 'Revision';
 export type FlowMode = 'ORIENTATION' | 'DASHBOARD' | 'FOCUS' | 'RECOVERY';
+export type LectureStudyMode = 'achievement' | 'standard' | 'importance';
 
 // --- 2. Configuration Objects (The Rules of Physics) ---
 
@@ -80,8 +81,6 @@ export interface Lecture {
     understandingDifficulty?: number;
 
     /** [DETERMINISTIC] 0-10 Personal Performance Index */
-    cognitiveIndex?: number;
-
     /** [DETERMINISTIC] Grade based on Cognitive Index */
     grade?: 'A+' | 'A' | 'B+' | 'B' | 'C+' | 'C' | 'D';
 
@@ -108,6 +107,19 @@ export interface Lecture {
      * This is the Single Source of Truth for pre-study expectations.
      */
     expectedDuration: number;
+
+    /**
+     * [STUDY MODE SYSTEM v2.0]
+     * Selected study mode determines time multiplier.
+     * - achievement: 1.5× (easy lectures)
+     * - standard: 2× (default, official evaluation)
+     * - importance: 2.5× (difficult lectures)
+     */
+    studyMode?: LectureStudyMode;
+    multiplier?: number;              // 1.5 | 2.0 | 2.5
+    customExpectedTime?: number;      // duration × multiplier
+    recommendedMode?: LectureStudyMode;      // Platform recommendation
+    recommendationReason?: string;    // Why recommended
 
     lastRevision?: string; // ISO Date
 }
@@ -147,6 +159,14 @@ export interface StudentProfile {
     consistencyIndex: number; // 0-100
     learningPhase: 'INIT' | 'NOVICE' | 'ADAPTIVE'; // [CRITICAL ARCHITECTURE] Persistent State
 
+    /** 
+     * [ADAPTIVE ENGINE] 
+     * Rolling average of cognitive load index (Last 5 valid sessions).
+     * Used for calculating the multiplier for future sessions.
+     * Scale: 0-10
+     */
+    cumulativeIndex?: number;
+
     totalSessions: number;
 
     /** 
@@ -170,7 +190,7 @@ export interface StudySession {
 
     startTime: number; // Timestamp
     endTime: number | null; // Timestamp
-    status: 'IN_PROGRESS' | 'COMPLETED' | 'INTERRUPTED';
+    status: 'IN_PROGRESS' | 'COMPLETED' | 'INTERRUPTED' | 'FORCED_END';
 
     /** The calculated expected time based on baseline * relativeDifficulty */
     expectedDuration: number;
@@ -184,17 +204,18 @@ export interface StudySession {
     /** The computed cost extracted from the user */
     cognitiveCost: number;
 
-    /** 
-     * 0-100. Efficiency Metric.
-     * Calculated by EndSessionEngine based on Actual vs Expected duration.
-     * 90-100 = Excellent, <40 = Critical Inefficiency.
-     */
-    performanceIndex: number;
+    /** [ADAPTIVE ENGINE] 'A+' | 'A' ... 'D' */
+    performanceGrade?: string;
 
-    /** 
-     * 0-100. Self-reported focus or system-derived efficiency.
-     * Low focus increases cost but decreases stability gain.
-     */
+    /** [ANTI-ABUSE] False if session was < 25% duration */
+    isValid?: boolean;
+
+    /** [CRITICAL VALIDITY GUARD] False if force-ended or system-killed */
+    isValidForMetrics?: boolean;
+
+    /** Who terminated the session */
+    endedBy?: 'USER' | 'ADMIN' | 'SYSTEM';
+
     /** 
      * 0-100. Self-reported focus or system-derived efficiency.
      * Low focus increases cost but decreases stability gain.
@@ -203,6 +224,20 @@ export interface StudySession {
 
     preUnderstanding?: number;
     postUnderstanding?: number;
+
+    // --- FORENSIC ANALYSIS DATA ---
+    segments?: SessionSegment[];
+    collectionRate?: number; // 0-100 (Effective Time / Total Time)
+}
+
+// --- FORENSIC ANALYSIS TYPES ---
+export type SegmentType = 'ACTIVE' | 'TOOL' | 'IDLE' | 'DISENGAGED';
+
+export interface SessionSegment {
+    startTime: number;
+    endTime: number | null; // null if current
+    type: SegmentType;
+    duration: number; // Computed on close (ms)
 }
 
 export interface DailyLoad {
@@ -230,6 +265,7 @@ export interface UserProfile {
     fullName?: string; // Official Arabic Name (3-part)
     role: UserRole;
     avatarUrl?: string; // Visual
+    phone?: string; // Contact (Legacy/Flat)
 
     // Academic Context
     academicYear?: "Year 1" | "Year 2" | "Year 3" | "Year 4" | "Year 5";

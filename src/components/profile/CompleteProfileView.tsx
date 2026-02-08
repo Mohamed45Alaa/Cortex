@@ -101,6 +101,7 @@ export default function CompleteProfileView() {
     };
 
     const isRtl = language === 'ar';
+    // const dir = 'ltr'; // Strict Force LTR
 
     return (
         <div className="fixed inset-0 z-[999999] bg-[#020617] flex items-center justify-center font-sans overflow-hidden">
@@ -113,14 +114,13 @@ export default function CompleteProfileView() {
                 />
             </div>
 
-            <div className="relative w-full max-w-[480px] mx-4 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl p-8 flex flex-col items-center overflow-hidden">
-
+            <div className="relative w-full max-w-[480px] mx-4 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl p-8">
                 <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
                 <div className="absolute top-6 right-6 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors z-10">
-                    <button onClick={() => setLanguage('en')} className={`text-[11px] font-bold tracking-wider ${!isRtl ? 'text-white' : 'text-slate-500'}`}>EN</button>
+                    <button onClick={() => setLanguage('en')} className={`text-[11px] font-bold tracking-wider ${language === 'en' ? 'text-white' : 'text-slate-500'}`}>EN</button>
                     <div className="w-[1px] h-3 bg-white/20" />
-                    <button onClick={() => setLanguage('ar')} className={`text-[11px] font-bold tracking-wider ${isRtl ? 'text-white' : 'text-slate-500'}`}>AR</button>
+                    <button onClick={() => setLanguage('ar')} className={`text-[11px] font-bold tracking-wider ${language === 'ar' ? 'text-white' : 'text-slate-500'}`}>AR</button>
                 </div>
 
                 <div className="flex flex-col items-center w-full mb-8 mt-2 text-center">
@@ -142,7 +142,7 @@ export default function CompleteProfileView() {
                     </h2>
                 </div>
 
-                <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6" dir={isRtl ? 'rtl' : 'ltr'}>
+                <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6" dir="ltr">
 
                     <div className="space-y-2">
                         <label className="text-[13px] font-medium text-slate-300 ml-1">

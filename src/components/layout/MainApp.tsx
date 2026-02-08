@@ -11,6 +11,7 @@ import { SessionTimerView } from '@/components/layout/SessionTimerView';
 import { HistoryView } from '@/components/history/HistoryView';
 import { SystemConfigView } from '@/components/dashboard/SystemConfigView';
 import { AccountSettingsView } from '@/components/dashboard/AccountSettingsView';
+import { ToolsView } from '@/components/dashboard/ToolsView';
 import { AcademicStructureEngine } from '@/core/engines/AcademicStructureEngine';
 import { PreStudyEngine } from '@/core/engines/PreStudyEngine';
 import { StudentProfilerEngine } from '@/core/engines/StudentProfilerEngine';
@@ -18,7 +19,12 @@ import { EndSessionEngine } from '@/core/engines/EndSessionEngine';
 import { CapacityEngine } from '@/core/engines/CapacityEngine';
 import { useStore } from '@/store/useStore';
 import { translations, Language } from '@/core/i18n/translations';
-import { Lecture } from '@/core/types';
+import { Lecture, StudySession, LectureStudyMode } from '@/core/types';
+import { StudyModeSelector } from '@/components/dashboard/StudyModeSelector';
+import { ModeWarningModal } from '@/components/dashboard/ModeWarningModal';
+import { checkModeWarning } from '@/lib/studyModeHelpers';
+
+import { useRestoreActiveSession } from '@/hooks/useRestoreActiveSession';
 
 // Helper to get translated string
 const t = (key: string, lang: Language) => {
@@ -27,8 +33,16 @@ const t = (key: string, lang: Language) => {
 };
 
 export function MainApp() {
+    // 1. Session Persistence Hook
+    useRestoreActiveSession();
+
     const [context, setContext] = useState<FlowContext>(FlowEngine.getInitialState());
     const [inputValue, setInputValue] = useState<any>(null);
+
+    // Warning Modal State
+    const [showWarning, setShowWarning] = useState(false);
+    const [warningType, setWarningType] = useState<'hard_achievement' | 'easy_importance' | null>(null);
+    const [pendingModeSelection, setPendingModeSelection] = useState<LectureStudyMode | null>(null);
 
     // App State
     const [language, setLanguage] = useState<Language>('en');
@@ -40,23 +54,42 @@ export function MainApp() {
     // Theme Effect
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
-        document.documentElement.setAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
-    }, [theme, language]);
+        document.documentElement.setAttribute('dir', 'ltr'); // Force LTR for consistency
+    }, [theme]); // Removed language dependency to enforce LTR
+
+    // Keyboard listener for mode selection
+    useEffect(() => {
+        const handleKeyPress = (e: KeyboardEvent) => {
+            if (context.currentState === 'REG_MODE_SELECT' && e.key === 'Enter' && inputValue) {
+                e.preventDefault();
+                handleNext(inputValue);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyPress);
+        return () => window.removeEventListener('keydown', handleKeyPress);
+    }, [context.currentState, inputValue]);
 
     // Timeout Modal State
     const [timeoutModal, setTimeoutModal] = useState(false);
 
-    // Active Session Persistence Check & GLOBAL GUARD
+    //Active Session Persistence Check & GLOBAL GUARD
     const { activeSession, endActiveSession } = useStore();
     useEffect(() => {
-        // 1. Navigation Logic (If active, force Execution View)
-        if (activeSession && activeSession.isActive && context.currentState !== 'STUDY_EXECUTION') {
-            setContext(prev => ({
-                ...prev,
-                currentState: 'STUDY_EXECUTION',
-                selectedSubjectId: activeSession.lectureId
-            }));
+        // 1. HARD LOCK: If active session exists, FORCE Execution View
+        // This runs on refresh, new tab, any mount
+        if (activeSession && activeSession.isActive) {
+            console.log("[MainApp] 🔒 HARD LOCK: Active session detected, forcing STUDY_EXECUTION");
+            if (context.currentState !== 'STUDY_EXECUTION') {
+                setContext(prev => ({
+                    ...prev,
+                    currentState: 'STUDY_EXECUTION',
+                    selectedSubjectId: activeSession.lectureId
+                }));
+            }
         }
+        // REMOVED: Premature dashboard redirect
+        // SessionTimerView will handle result display and navigation via handleSessionComplete
 
         // 2. SAFETY GUARD: 12-Hour Limit Check (Global)
         let interval: NodeJS.Timeout;
@@ -87,7 +120,7 @@ export function MainApp() {
         return () => {
             if (interval) clearInterval(interval);
         };
-    }, [activeSession, context.currentState]); // Added dependency
+    }, [activeSession]); // Removed context.currentState to trigger on ANY activeSession change
 
     // --- HELPER FUNCTIONS ---
     const handleNext = (overrideInput?: any) => {
@@ -127,11 +160,19 @@ export function MainApp() {
             if (context.currentState === 'REG_TYPE') nextContext.tempRegistration = { ...nextContext.tempRegistration!, type: input };
             if (context.currentState === 'REG_DURATION') nextContext.tempRegistration = { ...nextContext.tempRegistration!, duration: input };
             if (context.currentState === 'REG_UNDERSTANDING') {
+                // Store understanding but DON'T create lecture yet
                 nextContext.tempRegistration = { ...nextContext.tempRegistration!, understanding: input };
+                // Transition to mode selection state
+            }
 
-                // AUTO-COMPLETE REGISTRATION
+            // NEW: Mode Selection Step
+            if (context.currentState === 'REG_MODE_SELECT') {
+                const selectedMode = input as LectureStudyMode;
+                nextContext.tempRegistration = { ...nextContext.tempRegistration!, studyMode: selectedMode };
+
+                // NOW CREATE LECTURE with all data including mode
                 const mentalLoadVal: 'Low' | 'Medium' | 'High' = 'Medium';
-                const understandingScore = Number(input);
+                const understandingScore = Number(nextContext.tempRegistration!.understanding);
 
                 const studentState = {
                     phase: profile ? (profile.learningPhase || 'INIT') : 'INIT',
@@ -145,7 +186,8 @@ export function MainApp() {
                     understandingScore,
                     mentalLoadVal,
                     nextContext.tempRegistration!.type as any,
-                    studentState
+                    studentState,
+                    selectedMode  // NEW: Pass mode
                 );
                 addLecture(newLecture);
                 nextContext.feedbackMessage = t('cycle_complete', language);
@@ -170,9 +212,9 @@ export function MainApp() {
                 addLecture(adHocLecture);
 
                 const focusLevel = context.tempCalibration.focus > 66 ? 'High' : 'Medium';
-                const session = PreStudyEngine.registerSession(adHocLecture, context.tempCalibration.familiarity, focusLevel);
-                registerSession(session);
-                nextContext.currentSessionId = session.id;
+                // REMOVED: PreStudyEngine.registerSession (Integrity Fix)
+                // Session is now created ONLY by SessionTimerView -> startActiveSession
+                nextContext.currentSessionId = undefined; // No ID yet
             }
 
             if (context.currentState === 'REFLECTION_CHECK') {
@@ -195,18 +237,31 @@ export function MainApp() {
         }
     };
 
-    const handleSessionComplete = (actualMinutes: number) => {
-        setContext(prev => {
-            const updated = {
+    const handleSessionComplete = (endedSession: StudySession) => {
+        // [MODIFIED] Immediate Completion Logic (Skips "Session Outcome" Step)
+
+        if (!endedSession) {
+            console.warn("[MainApp] Session completed without data (Force Ended?). Returning to Dashboard.");
+            setContext(prev => ({
                 ...prev,
-                tempCalibration: {
-                    ...prev.tempCalibration,
-                    time: actualMinutes
-                }
-            };
-            const nextState = FlowEngine.nextState('STUDY_EXECUTION', null);
-            return { ...updated, currentState: nextState };
-        });
+                currentState: prev.selectedSubjectId ? 'DASHBOARD_SUBJECT' : 'SUBJECT_LIST',
+                feedbackMessage: 'Session Terminated'
+            }));
+            return;
+        }
+
+        // 1. Run Profiler Logic immediately
+        if (profile && dailyLoad) {
+            const newProfile = StudentProfilerEngine.updateProfile(profile, endedSession);
+            setProfile(newProfile);
+        }
+
+        // 2. Return to Dashboard immediately
+        setContext(prev => ({
+            ...prev,
+            currentState: prev.selectedSubjectId ? 'DASHBOARD_SUBJECT' : 'SUBJECT_LIST',
+            feedbackMessage: t('cycle_complete', language)
+        }));
     };
 
     const getQuestionProps = () => {
@@ -337,7 +392,7 @@ export function MainApp() {
 
 
         // --- DASHBOARD ROUTER ---
-        if (['SUBJECT_LIST', 'DASHBOARD_SUBJECT', 'DASHBOARD_SETTINGS', 'DASHBOARD_HOME', 'DASHBOARD_HISTORY', 'DASHBOARD_CONFIG', 'DASHBOARD_ACCOUNT'].includes(context.currentState)) {
+        if (['SUBJECT_LIST', 'DASHBOARD_SUBJECT', 'DASHBOARD_SETTINGS', 'DASHBOARD_HOME', 'DASHBOARD_TOOLS', 'DASHBOARD_HISTORY', 'DASHBOARD_CONFIG', 'DASHBOARD_ACCOUNT'].includes(context.currentState)) {
             // ... View Logic ...
             if (context.currentState === 'DASHBOARD_SETTINGS' && context.selectedSubjectId) {
                 const subject = subjects.find(s => s.id === context.selectedSubjectId)!;
@@ -379,15 +434,15 @@ export function MainApp() {
                             onQuestionFlowStart={(flowType, contextId, predictedDuration) => {
                                 if (flowType === 'SESSION_START') {
                                     const lecture = lectures.find(l => l.id === contextId)!;
-                                    const session = PreStudyEngine.registerSession(lecture, 5, 'Medium');
-                                    registerSession(session);
+                                    // REMOVED: PreStudyEngine.registerSession (Integrity Fix)
+                                    // registerSession(session);
                                     setContext(prev => ({
                                         ...prev,
                                         currentState: 'STUDY_EXECUTION',
                                         actionType: 'STUDY',
                                         selectedSubjectId: subject.id,
                                         activeLectureId: contextId,
-                                        currentSessionId: session.id,
+                                        currentSessionId: undefined, // No ID yet
                                         tempCalibration: { familiarity: 5, focus: 50, time: predictedDuration || lecture.duration * 2 }
                                     }));
                                 } else {
@@ -426,6 +481,21 @@ export function MainApp() {
                         onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
                     >
                         <SystemConfigView lang={language} />
+                    </ControlLayout>
+                );
+            }
+
+            if (context.currentState === 'DASHBOARD_TOOLS') {
+                return (
+                    <ControlLayout
+                        currentView={context.currentState}
+                        onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
+                        lang={language}
+                        onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
+                        theme={theme}
+                        onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                    >
+                        <ToolsView />
                     </ControlLayout>
                 );
             }
@@ -498,18 +568,87 @@ export function MainApp() {
                 theme={theme}
                 onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
             >
-                <SingleQuestionView
-                    question={questionText}
-                    subtitle={context.currentState === 'REG_DURATION' ? t('duration_note', language) : undefined}
-                    warning={context.currentState === 'REG_DURATION' ? t('duration_warning', language) : undefined}
-                    inputType={props.inputType}
-                    value={inputValue}
-                    onChange={setInputValue}
-                    onConfirm={handleNext}
-                    placeholder={props.placeholder}
-                    options={props.options}
-                    lang={language}
-                />
+                {/* Special Case: Study Mode Selector */}
+                {context.currentState === 'REG_MODE_SELECT' ? (
+                    <div className="flex flex-col items-center min-h-screen p-8 pt-4">
+                        <h1 className="text-3xl font-bold text-white mb-8 text-center">{translations[language].select_study_mode}</h1>
+                        <div className="w-full max-w-5xl">
+                            <StudyModeSelector
+                                lectureDuration={context.tempRegistration!.duration}
+                                difficulty={11 - context.tempRegistration!.understanding}  // Convert understanding to difficulty
+                                selectedMode={(inputValue as LectureStudyMode) || 'standard'}
+                                onSelect={(mode) => {
+                                    setInputValue(mode);
+                                }}
+                            />
+                        </div>
+
+                        {/* Enter Button */}
+                        <button
+                            onClick={() => {
+                                const selectedMode = inputValue || 'standard';
+                                const difficulty = 11 - context.tempRegistration!.understanding;
+                                const warningCheck = checkModeWarning(difficulty, selectedMode);
+
+                                if (warningCheck.shouldWarn) {
+                                    // Show warning modal
+                                    setWarningType(warningCheck.warningKey);
+                                    setPendingModeSelection(selectedMode);
+                                    setShowWarning(true);
+                                } else {
+                                    // No warning, proceed directly
+                                    handleNext(selectedMode);
+                                }
+                            }}
+                            disabled={!inputValue}
+                            className={`
+                                mt-12 px-10 py-3 rounded-xl font-bold text-base tracking-wider
+                                transition-all duration-300 transform
+                                ${inputValue
+                                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-2xl shadow-indigo-500/50 hover:shadow-indigo-400/60 hover:scale-105'
+                                    : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                                }
+                            `}
+                        >
+                            <span className="text-white font-bold">{translations[language].enter_btn}</span>
+                        </button>
+
+                        {/* Warning Modal */}
+                        <ModeWarningModal
+                            isOpen={showWarning}
+                            warningType={warningType}
+                            language={language}
+                            translations={translations}
+                            onCancel={() => {
+                                // User chose "لن استخدمه" - close modal and reset selection
+                                setShowWarning(false);
+                                setWarningType(null);
+                                setPendingModeSelection(null);
+                                setInputValue(null); // Reset selection so user can pick again
+                            }}
+                            onProceed={() => {
+                                // User chose "أفهم ذلك لكن سأستخدمه" - proceed with selection
+                                setShowWarning(false);
+                                handleNext(pendingModeSelection || 'standard');
+                                setWarningType(null);
+                                setPendingModeSelection(null);
+                            }}
+                        />
+                    </div>
+                ) : (
+                    <SingleQuestionView
+                        question={questionText}
+                        subtitle={context.currentState === 'REG_DURATION' ? t('duration_note', language) : undefined}
+                        warning={context.currentState === 'REG_DURATION' ? t('duration_warning', language) : undefined}
+                        inputType={props.inputType}
+                        value={inputValue}
+                        onChange={setInputValue}
+                        onConfirm={handleNext}
+                        placeholder={props.placeholder}
+                        options={props.options}
+                        lang={language}
+                    />
+                )}
             </ControlLayout>
         );
     }

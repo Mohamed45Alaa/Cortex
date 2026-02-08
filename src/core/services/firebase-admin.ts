@@ -12,9 +12,19 @@ function formatPrivateKey(key: string) {
     return key.replace(/\\n/g, "\n");
 }
 
+// SINGLETON PATTERN FIX
+declare global {
+    var _firebaseAdmin: admin.app.App | undefined;
+}
+
 export function createFirebaseAdminApp() {
+    if (global._firebaseAdmin) {
+        return global._firebaseAdmin;
+    }
+
     if (admin.apps.length > 0) {
-        return admin.app();
+        global._firebaseAdmin = admin.app();
+        return global._firebaseAdmin;
     }
 
     const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -35,7 +45,7 @@ export function createFirebaseAdminApp() {
         throw new Error(errorMsg);
     }
 
-    return admin.initializeApp({
+    const app = admin.initializeApp({
         credential: admin.credential.cert({
             projectId,
             clientEmail,
@@ -43,4 +53,7 @@ export function createFirebaseAdminApp() {
         }),
         databaseURL
     });
+
+    global._firebaseAdmin = app;
+    return app;
 }

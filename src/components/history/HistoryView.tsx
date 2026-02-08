@@ -3,6 +3,7 @@ import { useStore } from '@/store/useStore';
 import { HistoryEngine, WeeklyBlock, StudyRecord } from '@/core/engines/HistoryEngine';
 import styles from './HistoryView.module.css';
 import { ChevronDown, ChevronRight, CheckCircle, Clock, Calendar } from 'lucide-react';
+import { formatCognitiveLoad } from '@/core/utils/formatting';
 
 export const HistoryView: React.FC = () => {
     const { sessions, lectures, subjects } = useStore();
@@ -105,7 +106,7 @@ const WeekBlock: React.FC<{ block: WeeklyBlock }> = ({ block }) => {
                                         {record.grade || '-'}
                                     </td>
                                     <td className="font-mono text-xs opacity-60">
-                                        {record.cognitiveIndex?.toFixed(1) || '-'}
+                                        {formatCognitiveLoad(record.cognitiveCost)}
                                     </td>
                                     <td>
                                         <StatusBadge status={record.status} />

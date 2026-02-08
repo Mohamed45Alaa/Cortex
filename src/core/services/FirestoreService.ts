@@ -10,9 +10,12 @@ import {
     writeBatch,
     query, // New
     where, // New
-    collectionGroup // New
+    collectionGroup, // New
+    deleteField // New
 } from 'firebase/firestore';
+import { getAuth } from "firebase/auth";
 import { getFirestoreInstance } from './firebase';
+import { WriteBufferService } from './WriteBufferService'; // New
 
 /**
  * Firestore Service - Silent Sync Layer
@@ -24,6 +27,18 @@ import { getFirestoreInstance } from './firebase';
  */
 
 export const FirestoreService = {
+
+    // BUFFERED WRITE (Phase 2)
+    bufferSessionUpdate: (uid: string, session: any) => {
+        // Construct Path
+        const path = `users/${uid}/subjects/${session.subjectId}/lectures/${session.lectureId}/sessions/${session.id}`;
+
+        // Write to Buffer
+        WriteBufferService.write(path, {
+            ...session,
+            syncedAt: new Date().toISOString() // Client-side timestamp for now
+        }, 'SET', true);
+    },
 
     /**
      * Save basic user profile data (silently)
@@ -177,16 +192,7 @@ export const FirestoreService = {
                 snapshotVersion: 1
             }, { merge: true });
 
-            // 3. Cognitive Index Ref (Parallel Sync)
-            if (session.performanceIndex) {
-                const indexRef = doc(db, 'users', uid, 'cognitiveIndex', 'main');
-                batch.set(indexRef, {
-                    value: session.performanceIndex, // Simplified for now
-                    totalSessions: snapshot.profile.totalSessions,
-                    lastUpdated: serverTimestamp()
-                }, { merge: true });
-            }
-
+            /* DEPRECATED: cognitiveIndex (Legacy field removed) */
             // Execute Atomic Commit
             await batch.commit();
             console.log("[Firestore] Atomic Save Complete: Session + Snapshot");
@@ -307,17 +313,23 @@ export const FirestoreService = {
             const startTime = Date.now();
 
             // 1. Load Cognitive Index, State Snapshot, AND Identity Profile (Parallel)
-            const indexRef = doc(db, 'users', uid, 'cognitiveIndex', 'main');
+            // [PHASE 2] AUTH VERIFICATION
+            const auth = getAuth();
+            if (!auth.currentUser) {
+                console.warn("[Firestore] Blocked hydration: Auth not ready");
+                return null;
+            }
+
             const snapshotRef = doc(db, 'users', uid, 'stateSnapshot', 'main');
             const profileRef = doc(db, 'users', uid, 'profile', 'main');
 
-            const [indexSnap, snapshotSnap, profileSnap] = await Promise.all([
-                getDoc(indexRef),
+            const [snapshotSnap, profileSnap] = await Promise.all([
                 getDoc(snapshotRef),
                 getDoc(profileRef)
             ]);
+            // DELETED: cognitiveIndex legacy read
+            const cognitiveIndex = null;
 
-            const cognitiveIndex = indexSnap.exists() ? indexSnap.data() : null;
             const stateSnapshot = snapshotSnap.exists() ? snapshotSnap.data() : null;
             const identityProfile = profileSnap.exists() ? profileSnap.data() : null;
 
@@ -385,7 +397,6 @@ export const FirestoreService = {
                             id: sessDoc.id,
                             lectureId: lecDoc.id,
                             subjectId: subDoc.id,
-                            performanceIndex: sessData.performanceIndex ?? 0,
                             cognitiveCost: sessData.cognitiveCost ?? 0
                         });
                     });
@@ -408,7 +419,7 @@ export const FirestoreService = {
             console.log(`[Firestore] Hydration complete in ${Date.now() - startTime}ms. Found: ${subjects.length} Subjects, ${lectures.length} Lectures.`);
 
             return {
-                cognitiveIndex,
+                // cognitiveIndex removed from return
                 stateSnapshot,
                 identityProfile, // Normalized Identity Data
                 subjects,
@@ -441,4 +452,108 @@ export const FirestoreService = {
 
         return unsubscribe;
     },
+
+    /**
+     * SYSTEM HEALER: Legacy Data Fixer
+     * Strictly enforces 0-10 scale and cleans up corrupted state.
+     */
+    healUserMetrics: async (uid: string) => {
+        try {
+            const db = getFirestoreInstance();
+            if (!db) return;
+
+            console.log("[Healer] Starting strict data unification for:", uid);
+            const batch = writeBatch(db);
+
+            // 1. Reset State Snapshot Aggregates
+            const snapshotRef = doc(db, 'users', uid, 'stateSnapshot', 'main');
+            batch.update(snapshotRef, {
+                cumulativeIndex: 0,
+                "dailyLoad.totalCognitiveCost": 0,
+                lastUpdatedAt: serverTimestamp()
+            });
+
+            // 2. Fetch ALL Sessions (May be expensive, but this is a one-time admin action)
+            const sessionsQuery = collectionGroup(db, 'sessions'); // Global query filtered by path check or query?
+            // Actually, querying users/{uid}/.../sessions is safer/faster if we traverse or use specific Collection Group query with uid filter if indexed.
+            // But strict path traversal in `loadUserData` style is slow. 
+            // Better: Collection Group Query locally? No, Firestore permissions rely on uid.
+            // Let's use recursive fetch via same logic as `loadUserData` OR just use `getDocs(collectionGroup(db, 'sessions'))` but we need to filter by owner.
+            // Since we can't easily filter by "owner" field (doesn't exist on all), we must use the known method:
+            // Query all subjects -> all lectures -> all sessions.
+            // reusing `loadUserData` logic would be heavy.
+            // Allow simplified approach: Query `sessions` collection group where `userId` == uid? 
+            // We don't store `userId` on sessions consistently in legacy data.
+            // Safer: Traverse Subjects.
+
+            const subjectsColl = collection(db, 'users', uid, 'subjects');
+            const subjectsSnap = await getDocs(subjectsColl);
+
+            let totalCost = 0;
+            let validSessionsCount = 0;
+
+            for (const subDoc of subjectsSnap.docs) {
+                const lecturesColl = collection(db, 'users', uid, 'subjects', subDoc.id, 'lectures');
+                const lecturesSnap = await getDocs(lecturesColl);
+
+                for (const lecDoc of lecturesSnap.docs) {
+                    const sessionsColl = collection(db, 'users', uid, 'subjects', subDoc.id, 'lectures', lecDoc.id, 'sessions');
+                    const sessionsSnap = await getDocs(sessionsColl);
+
+                    for (const sessDoc of sessionsSnap.docs) {
+                        const data = sessDoc.data();
+                        let cost = data.cognitiveCost;
+                        let needsUpdate = false;
+                        const updates: any = {};
+
+                        // RULE 1: Sanitize Cost
+                        if (typeof cost === 'number' && cost > 10) {
+                            updates.cognitiveCost = cost / 10;
+                            cost = cost / 10;
+                            needsUpdate = true;
+                        }
+
+                        // RULE 2: Delete Legacy Fields
+                        if (data.performanceIndex !== undefined) {
+                            updates.performanceIndex = deleteField();
+                            needsUpdate = true;
+                        }
+                        if (data.cognitiveIndex !== undefined) {
+                            updates.cognitiveIndex = deleteField();
+                            needsUpdate = true;
+                        }
+
+                        if (needsUpdate) {
+                            batch.update(sessDoc.ref, updates);
+                        }
+
+                        // RULE 3: Recalculate Average (Strict Filter)
+                        if (data.status === 'COMPLETED' && data.isValidForMetrics === true) {
+                            // Clamp cost if it was weird but not > 10 (e.g. valid range)
+                            // But we use the sanitized `cost` variable
+                            const cleanCost = Math.min(10, Math.max(0, cost || 0));
+                            totalCost += cleanCost;
+                            validSessionsCount++;
+                        }
+                    }
+                }
+            }
+
+            // 3. Compute New Average
+            const newAverage = validSessionsCount > 0 ? (totalCost / validSessionsCount) : 0;
+            console.log(`[Healer] Recalculated Cumulative Index: ${newAverage.toFixed(2)} (from ${validSessionsCount} valid sessions)`);
+
+            // 4. Update Profile/Snapshot with correct average
+            batch.update(snapshotRef, {
+                cumulativeIndex: newAverage
+            });
+
+            await batch.commit();
+            console.log("[Healer] Healing complete.");
+
+        } catch (error) {
+            console.error("[Healer] Failed:", error);
+            throw error;
+        }
+    }
 };

@@ -106,13 +106,15 @@ export const RealtimePresenceService = {
      * HEARTBEAT -> NOW SERVER AUTHORITATIVE
      * "I am still here. Am I allowed to be?"
      */
-    heartbeat: async (uid: string) => {
-        // Send current visibility state
+    heartbeat: async (uid: string, data?: { lastInteraction?: number, activeSessionId?: string }) => {
         const isHidden = document.hidden;
         const state = isHidden ? 'background' : 'online';
+
         await callSessionApi('HEARTBEAT', {
             state,
-            currentPage: window.location.pathname
+            currentPage: window.location.pathname,
+            lastInteraction: data?.lastInteraction,
+            activeSessionId: data?.activeSessionId
         });
     },
 

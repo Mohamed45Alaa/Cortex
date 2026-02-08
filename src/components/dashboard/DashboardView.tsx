@@ -6,9 +6,12 @@ import {
     Zap,
     Play
 } from 'lucide-react';
+import { CollectionRateCard } from '@/components/dashboard/CollectionRateCard';
+import { StatCard } from '@/components/dashboard/StatCard';
 import { useStudentProfile, useDailyLoad, useSubjectList } from '@/core/hooks';
 
 import { translations, Language } from '@/core/i18n/translations';
+import { formatCognitiveLoad } from '@/core/utils/formatting';
 
 interface DashboardViewProps {
     onSelectSubject: (id: string) => void;
@@ -31,7 +34,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     // Helper to get translated dynamic values
     const getTranslatedStatus = (status: string) => {
-        const key = status.toLowerCase();
+        const key = status.toUpperCase();
         // @ts-ignore
         return t[key] || status;
     };
@@ -46,60 +49,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className={styles.dashboardContainer}> {/* Wrapper for max-width */}
 
             {/* HERO ROW: TELEMETRY */}
+            {/* HERO ROW: TELEMETRY */}
             <section className={styles.heroGrid}>
-                {/* METRIC 1: CAPACITY */}
-                <div className={styles.heroCard}>
-                    <div className={styles.heroHeader}>
-                        <div className={`${styles.heroIconBox} ${styles.tealIcon}`}>
-                            <Zap size={24} />
-                        </div>
-                        <span className={styles.heroLabel}>{t.system_capacity}</span>
-                    </div>
-                    <div className={styles.heroMainContent}>
-                        <span className={styles.heroValue} style={{ color: capacityColor }}>
-                            {profile.currentCapacity}%
-                        </span>
-                        <span className={styles.heroSubtext}>
-                            {profile.currentCapacity > 80 ? t.nominal_state : t.depleted_state}
-                        </span>
-                    </div>
-                </div>
+                {/* METRIC 1: CUMULATIVE COLLECTION RATE */}
+                <CollectionRateCard lang={lang} />
 
                 {/* METRIC 2: LOAD */}
-                <div className={styles.heroCard}>
-                    <div className={styles.heroHeader}>
-                        <div className={`${styles.heroIconBox} ${styles.purpleIcon}`}>
-                            <Brain size={24} />
-                        </div>
-                        <span className={styles.heroLabel}>{t.cognitive_load}</span>
-                    </div>
-                    <div className={styles.heroMainContent}>
-                        <div className={styles.heroValueRow}>
-                            <span className={styles.heroValue}>{dailyLoad.totalCognitiveCost}</span>
-                            <span className={styles.heroUnit}>{t.units}</span>
-                        </div>
-                        <span className={styles.heroSubtext}>
-                            {t.status}: {getTranslatedStatus(dailyLoad.status).toUpperCase()}
-                        </span>
-                    </div>
-                </div>
+                <StatCard
+                    label={t.COGNITIVE_LOAD}
+                    value={formatCognitiveLoad(dailyLoad.totalCognitiveCost)}
+                    subtext={`${t.SYSTEM_STATUS} · ${getTranslatedStatus(dailyLoad.status)}`}
+                    color="purple"
+                    icon={Brain}
+                />
 
                 {/* METRIC 3: VELOCITY */}
-                <div className={styles.heroCard}>
-                    <div className={styles.heroHeader}>
-                        <div className={`${styles.heroIconBox} ${styles.orangeIcon}`}>
-                            <Clock size={24} />
-                        </div>
-                        <span className={styles.heroLabel}>{t.velocity}</span>
-                    </div>
-                    <div className={styles.heroMainContent}>
-                        <div className={styles.heroValueRow}>
-                            <span className={styles.heroValue}>{profile.totalSessions}</span>
-                            <span className={styles.heroUnit}>{t.cycles}</span>
-                        </div>
-
-                    </div>
-                </div>
+                <StatCard
+                    label={t.TOTAL_SESSIONS}
+                    value={profile.totalSessions}
+                    subtext={`${t.COMPLETED}`}
+                    color="amber"
+                    icon={Clock}
+                />
             </section>
 
             {/* OVERVIEW SECTION & ACTION */}
@@ -107,7 +78,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 className={styles.sectionTitle}>{t.active_subjects}</h3>
                     <button className={styles.addSubjectButton} onClick={onAddSubject}>
-                        + {t.add_subject}
+                        + {t.ENROLL_COURSE}
                     </button>
                 </div>
             </div>
@@ -139,7 +110,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         {/* ACTION ZONE */}
                         <div className={styles.cardBottom}>
                             <button className={styles.inspectBtn}>
-                                {t.inspect} <Play size={14} fill="currentColor" />
+                                {t.ACCESS} <Play size={14} fill="currentColor" />
                             </button>
                         </div>
                     </div>

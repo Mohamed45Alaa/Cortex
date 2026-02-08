@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Lecture, StudySession } from '@/core/types';
 import styles from './SessionIntelligenceTable.module.css';
 import {
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { translations, Language } from '@/core/i18n/translations';
+import { formatCognitiveLoad } from '@/core/utils/formatting';
+import { LectureDetailsModal } from './LectureDetailsModal';
 
 interface SessionIntelligenceTableProps {
     subjectId: string;
@@ -35,12 +37,20 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
 }) => {
     const { activeSession, deleteLecture } = useStore();
 
+    // Modal state
+    const [selectedLectureId, setSelectedLectureId] = useState<string | null>(null);
+    const selectedLecture = lectures.find(l => l.id === selectedLectureId) || null;
+
     // Helper for Translation
     const t = translations[lang] || translations.en;
 
     // --- 1. METRICS COMPUTE (Global Subject Level) ---
     const metrics = useMemo(() => {
-        const completedSessions = sessions.filter(s => s.status === 'COMPLETED' || s.status === 'INTERRUPTED');
+        // 1-Minute Rule Enforcement
+        const completedSessions = sessions.filter(s =>
+            (s.status === 'COMPLETED' || s.status === 'INTERRUPTED') &&
+            s.actualDuration >= 1
+        );
         const count = completedSessions.length;
 
         if (count === 0) return { avgTime: 0, avgDiff: "0.0", total: 0, baseline: 0 };
@@ -198,7 +208,7 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
                     <span>{t.col_diff}</span>
                     <span>{t.col_delta}</span>
                     <span>Grade</span>
-                    <span>Index</span>
+                    <span>Cost</span>
                     <span>{t.col_status}</span>
                     <span>{t.col_actions}</span>
                 </div>
@@ -273,9 +283,11 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
                                 {row.original.grade || '—'}
                             </div>
 
-                            {/* INDEX */}
+                            {/* INDEX/COST */}
                             <div className={styles.colDuration} style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-                                {row.original.cognitiveIndex?.toFixed(1) || '—'}
+                                {isParent
+                                    ? (row.original as any).relativeDifficulty
+                                    : formatCognitiveLoad((row.original as any).cognitiveCost)}
                             </div>
 
                             {/* STATUS (Stacked) */}
@@ -309,7 +321,11 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
                                             </div>
                                         )}
 
-                                        <div className={styles.actionIcon} title={t.sess_scan}>
+                                        <div
+                                            className={styles.actionIcon}
+                                            title={t.sess_scan}
+                                            onClick={() => setSelectedLectureId(row.id)}
+                                        >
                                             <Eye size={18} />
                                         </div>
                                         <div
@@ -326,6 +342,14 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
                     );
                 })}
             </div>
+
+            {/* Lecture Details Modal */}
+            <LectureDetailsModal
+                lecture={selectedLecture}
+                sessions={sessions}
+                isOpen={selectedLectureId !== null}
+                onClose={() => setSelectedLectureId(null)}
+            />
         </div>
     );
 };

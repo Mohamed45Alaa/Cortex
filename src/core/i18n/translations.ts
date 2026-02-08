@@ -129,6 +129,39 @@ export const translations = {
         hours: "hours",
         minutes: "minutes",
         expectedTime: "Expected study time",
+
+        // Header
+        enter_admin: "ENTER ADMIN MODE",
+        sign_in: "Sign In",
+        sign_out: "Sign Out",
+        check_profile: "Complete Profile",
+        account_info: "Account Information",
+        switch_lang_en: "Switch to English",
+        switch_lang_ar: "Switch to Arabic",
+        lang_toggle_text: "EN | AR",
+
+        // Dashboard Metrics
+        TOTAL_SESSIONS: "Total Sessions",
+        COMPLETED: "Completed",
+        COGNITIVE_LOAD: "Cognitive Load",
+        COLLECTION_EFFICIENCY: "Collection Efficiency",
+        ENROLL_COURSE: "Enroll Course",
+        ACCESS: "Access",
+        CALIBRATION_NEEDED: "Calibration Needed",
+        OPTIMAL_STATE: "Optimal State",
+        MY_TOOLS: "My Tools",
+        SYSTEM_STATUS: "System Status",
+        RISK: "Critical",
+        SAFE: "Stable",
+        WARNING: "Warning",
+        select_study_mode: "Select your study evaluation mode",
+
+        // Mode Warnings
+        mode_warning_title: "Inappropriate Mode Selection",
+        mode_warning_hard_lecture: "This lecture is difficult, Achievement mode is NOT suitable for it at all.",
+        mode_warning_easy_lecture: "This lecture is easy, Importance mode is NOT suitable for it and will waste a lot of time with no results.",
+        mode_warning_btn_cancel: "I won't use it",
+        mode_warning_btn_proceed: "I understand but will use it",
     },
     ar: {
         orientation: "نظم حملك الدراسي، قراراً تلو الآخر.",
@@ -259,5 +292,38 @@ export const translations = {
         hours: "ساعات",
         minutes: "دقائق",
         expectedTime: "وقت الدراسة المتوقع",
+
+        // Header
+        enter_admin: "دخول وضع المشرف",
+        sign_in: "تسجيل الدخول",
+        sign_out: "تسجيل الخروج",
+        check_profile: "أكمل الملف الشخصي",
+        account_info: "معلومات الحساب",
+        switch_lang_en: "التبديل إلى الإنجليزية",
+        switch_lang_ar: "التبديل إلى العربية",
+        lang_toggle_text: "AR | EN",
+
+        // Dashboard Metrics
+        TOTAL_SESSIONS: "إجمالي الجلسات",
+        COMPLETED: "مكتملة",
+        COGNITIVE_LOAD: "الحمل المعرفي",
+        COLLECTION_EFFICIENCY: "كفاءة الالتزام",
+        ENROLL_COURSE: "إضافة مقرر",
+        ACCESS: "دخول",
+        CALIBRATION_NEEDED: "يلزم المعايرة",
+        OPTIMAL_STATE: "حالة مثالية",
+        MY_TOOLS: "أدواتي",
+        SYSTEM_STATUS: "حالة النظام",
+        RISK: "حرج",
+        SAFE: "مستقر",
+        WARNING: "تحذير",
+        select_study_mode: "اختر نظام التقييم",
+
+        // Mode Warnings
+        mode_warning_title: "اختيار نظام غير مناسب",
+        mode_warning_hard_lecture: "المحاضرة صعبة، وضع الإنجاز غير مناسب ابداً للمحاضرة دي.",
+        mode_warning_easy_lecture: "المحاضرة سهلة، وضع الأهمية غير مناسب للمحاضرة دي وسيضيع الكثير من الوقت بلا نتيجة.",
+        mode_warning_btn_cancel: "لن استخدمه",
+        mode_warning_btn_proceed: "أفهم ذلك لكن سأستخدمه",
     }
 };

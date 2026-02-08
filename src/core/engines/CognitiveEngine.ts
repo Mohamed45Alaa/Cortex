@@ -40,18 +40,16 @@ export const CognitiveEngine = {
         // 2. Calculate Cognitive Load Score (Biological Cost)
         const loadScore = CognitiveEngine.calculateCognitiveLoadScore(expected, actualDuration, relativeDifficulty);
 
-        // 3. Calculate Performance Index (0-10)
-        const index = CognitiveEngine.calculateCognitiveIndex(expected, actualDuration);
-
-        // 4. Determine Grade
-        const grade = CognitiveEngine.determineGrade(index);
+        // 3. Determine Grade (Based on Efficiency/Cost)
+        // strict 0-10 Scale
+        const grade = CognitiveEngine.determineGrade(loadScore);
 
         return {
             expectedStudyTimeMinutes: expected,
             relativeDifficulty: relativeDifficulty,
-            cognitiveLoadIndex: Math.round(loadScore), // Integer for UI
+            cognitiveLoadIndex: Math.round(loadScore * 10) / 10, // 1 decimal place
             performanceGrade: grade,
-            performanceIndex: index
+            // DELETED: performanceIndex
         };
     },
 
@@ -161,9 +159,19 @@ export const CognitiveEngine = {
 
         // Step 3: Adaptive Logic (Part 9)
         if (studentIndex !== null) {
-            if (studentIndex >= 9.0) {
+            // Adaptive logic uses Cost now? 
+            // Previous: Index (Performance). High Index = Good. 
+            // New: Cost (Load). Low Cost = Good.
+            // If Cost < 3 (Efficient) -> x0.9
+            // If Cost > 8 (Struggling) -> x1.2
+
+            // NOTE: studentIndex param passed here. Caller must pass Cost-compatible value?
+            // "studentIndex" usually refers to cumulativeIndex.
+            // If cumulativeIndex is now Cost, we invert logic here.
+
+            if (studentIndex <= 3.0) { // Efficient
                 final *= 0.9;
-            } else if (studentIndex <= 4.0) {
+            } else if (studentIndex >= 8.0) { // Struggling
                 final *= 1.2;
             }
         }
@@ -173,8 +181,8 @@ export const CognitiveEngine = {
 
     /**
      * PART 10: COGNITIVE LOAD SCORE
-     * Formula: (Actual / Expected) * (RelativeDifficulty / 10) * 100
-     * Range: 0 - 100+
+     * Formula: (Actual / Expected) * (RelativeDifficulty / 10) * 10
+     * Range: 0 - 10
      * Interpretation: High Score = High Mental Cost.
      */
     calculateCognitiveLoadScore: (expectedMinutes: number, actualMinutes: number, relativeDifficulty: number): number => {
@@ -186,58 +194,25 @@ export const CognitiveEngine = {
         // Difficulty factor (0-1)
         const diffFactor = relativeDifficulty / 10;
 
-        // Raw Score
-        const score = timeRatio * diffFactor * 100;
+        // Raw Score (0-10 Scale)
+        const score = timeRatio * diffFactor * 10;
 
-        // Cap for UI sanity (e.g. 200)? Or leave uncapped?
-        // Prompt typically implies 0-100 scale, but logic allows overflow.
-        // We will clamp to 100 as "Max Load" usually implies "Full Capacity".
-        return Math.min(100, Math.round(score));
+        // Cap at 10 for UI consistency
+        return Math.min(10, Math.max(0, score));
     },
 
     /**
-     * PART 7: COGNITIVE INDEX
-     * TimeRatio = Expected / Actual
-     * Normalized 0-10
+     * PART 8: GRADE MAPPING (COST BASED)
+     * Low Cost = High Grade
      */
-    calculateCognitiveIndex: (expectedMinutes: number, actualMinutes: number): number => {
-        if (actualMinutes <= 0) return 0;
-
-        // 1. Apply Tolerance Cap (No bonus beyond 10 mins early)
-        const cappedActual = Math.max(actualMinutes, expectedMinutes - 10);
-
-        // 2. Calculate Ratio
-        const ratio = expectedMinutes / cappedActual;
-
-        // 3. Dynamic Normalization
-        // Goal: Ratio 1.0 (On Time) -> Score 9.0 (A)
-        // Goal: Max Ratio (10m early) -> Score 10.0 (A+)
-        const maxRatio = expectedMinutes / (expectedMinutes - 10);
-
-        // Slope calculation
-        // Index = 9 + slope * (ratio - 1)
-        // 10 = 9 + slope * (maxRatio - 1)
-        // 1 = slope * (maxRatio - 1)
-        // slope = 1 / (maxRatio - 1)
-
-        const slope = 1 / (maxRatio - 1);
-
-        let index = 9 + slope * (ratio - 1);
-
-        // Fallback for very slow students
-        return Math.min(10, Math.max(0, parseFloat(index.toFixed(2))));
-    },
-
-    /**
-     * PART 8: GRADE MAPPING
-     */
-    determineGrade: (index: number): Grade => {
-        if (index >= 9.5) return 'A+';
-        if (index >= 8.5) return 'A';
-        if (index >= 7.5) return 'B+';
-        if (index >= 6.5) return 'B';
-        if (index >= 5.5) return 'C+';
-        if (index >= 4.0) return 'C';
+    determineGrade: (cost: number): Grade => {
+        // Cost 0-10
+        if (cost <= 2.5) return 'A+';
+        if (cost <= 4.0) return 'A';
+        if (cost <= 6.0) return 'B+';
+        if (cost <= 7.5) return 'B';
+        if (cost <= 8.5) return 'C+';
+        if (cost <= 9.5) return 'C';
         return 'D';
     }
 };

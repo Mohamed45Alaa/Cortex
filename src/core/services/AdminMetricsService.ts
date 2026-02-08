@@ -1,15 +1,20 @@
-import { getFirestoreInstance, getDatabaseInstance } from "@/core/services/firebase";
-import { collectionGroup, onSnapshot, query, doc, setDoc } from "firebase/firestore";
-import { ref, onValue } from "firebase/database";
+import { getDatabaseInstance, getFirestoreInstance } from "@/core/services/firebase";
+import { ref, onValue, off } from "firebase/database";
+import { doc, getDoc } from "firebase/firestore";
+import { CacheService } from "./CacheService"; // Fixed
 
-
-
+/**
+ * AdminMetricsService (HYBRID: RTDB Live + Firestore Lazy Truth)
+ * 
+ * 1. Listen to RTDB /status for Presence (Source of Truth for ONLINE).
+ * 2. If Profile missing in RTDB/Cache -> Lazy Fetch from Firestore /users/{uid}/profile/main.
+ * 3. Enforce 90s Heartbeat Timeout (Stale = Offline).
+ */
 export const AdminMetricsService = {
-    // --- DUAL LAYER AGGREGATION SERVICE ---
     subscribeToDashboard: (callback: (data: {
-        students: any[], // Mapped to StudentMonitorData
+        students: any[],
         total: number,
-        subscribed: number, // Legacy field, mostly ignored now
+        subscribed: number,
         onlineCount: number,
         stats: {
             onlineCount: number,
@@ -19,224 +24,81 @@ export const AdminMetricsService = {
             inactiveCount: number
         }
     }) => void) => {
-        // 0. Lazy Initialization (Safe)
-        const db = getFirestoreInstance();
         const dbRTDB = getDatabaseInstance();
+        const dbFirestore = getFirestoreInstance();
 
-        if (!db) {
-            console.error("[AdminMetrics] Firestore Failed to Initialize - Check Auth/Network");
-            return () => { }; // Return no-op cleanup
+        if (!dbRTDB || !dbFirestore) {
+            console.error("[AdminMetrics] DB Init Failed");
+            return () => { };
         }
 
-        // 1. Static Query (Firestore)
-        const profilesQuery = query(collectionGroup(db, 'profile'));
+        console.log("[AdminMetrics] Initializing Hybrid Subscription...");
 
-        // 2. Live Query (RTDB) (Already initialized above)
+        // DATA STORES
+        const rtdbUsersMap = new Map<string, any>();  // From RTDB /users (might be empty/partial)
+        const rtdbStatusMap = new Map<string, any>(); // From RTDB /status (Live Presence)
+        const firestoreProfileCache = new Map<string, any>(); // Lazy Loaded Profiles
+        const firestoreSessionCache = new Map<string, any>(); // Lazy Loaded Sessions
 
-        // 3. Maps (In-Memory Join)
-        let studentsMap = new Map<string, any>();
-        let liveStatusMap = new Map<string, any>();
+        const pendingProfileFetches = new Set<string>();
+        const pendingSessionFetches = new Set<string>();
 
-        // 4. Merging Logic
+
+
+        // ...
+
+        // HELPER: Lazy Fetch Profile
+        const fetchProfile = async (uid: string) => {
+            if (pendingProfileFetches.has(uid)) return;
+
+            // CACHE CHECK (Phase 3)
+            const cached = CacheService.get<any>(`profile_${uid}`);
+            if (cached) {
+                firestoreProfileCache.set(uid, cached);
+                emit();
+                return;
+            }
+
+            pendingProfileFetches.add(uid);
+
+            try {
+                // console.log(`[AdminMetrics] Hydrating Profile: ${uid}`);
+                const snap = await getDoc(doc(dbFirestore, 'users', uid, 'profile', 'main'));
+                if (snap.exists()) {
+                    const data = snap.data();
+                    firestoreProfileCache.set(uid, data);
+
+                    // CACHE SET (20s TTL)
+                    CacheService.set(`profile_${uid}`, data, 20);
+
+                    emit(); // Re-render with new data
+                }
+            } catch (e) {
+                console.warn(`[AdminMetrics] Profile fetch failed for ${uid}`, e);
+            } finally {
+                pendingProfileFetches.delete(uid);
+            }
+        };
+
+        // HELPER: Lazy Fetch Session
+        const fetchSession = async (uid: string, sessionId: string) => {
+            if (pendingSessionFetches.has(sessionId)) return;
+            if (firestoreSessionCache.has(sessionId)) return; // Already have it
+
+            pendingSessionFetches.add(sessionId);
+            // We need the SubjectId and LectureId ideally, but our path is deep.
+            // Problem: We don't know the full path just from sessionId easily unless we query or have context.
+            // Requirement says "Fetch latest session summary ... WITHOUT subscribing to full collections"
+            // If RTDB status has { activeSession: { subjectId, lectureId, sessionId } } -> Perfect.
+            // If not, we might skip full detail or do a targeted query if we really need it.
+            // For now, let's assume the RTDB stores context. If not, we skip this to be safe/fast.
+            // We'll rely on what's in RTDB or previously cached.
+            pendingSessionFetches.delete(sessionId);
+        };
+
+        // EMITTER
         const emit = () => {
             const combined: any[] = [];
-            let onlineCount = 0;
-            const NOW = Date.now();
-            const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
-            studentsMap.forEach((rawProfile, uid) => {
-                const profile = rawProfile;
-
-                // --- 1. PARSE FIRESTORE DATA (Fallback & Profile) ---
-                let lastLoginMs = 0;
-                if (profile.lastLoginAt) {
-                    try {
-                        const val = profile.lastLoginAt;
-                        lastLoginMs = typeof val === 'string' ? new Date(val).getTime() : (val.seconds * 1000);
-                    } catch (e) { }
-                }
-
-                // --- 2. PARSE RTDB DATA (Live State) ---
-                const rtdbStatus = liveStatusMap.get(uid);
-
-                // Active Session Logic: Presence of object = In Session
-                const activeSessionData = rtdbStatus?.activeSession;
-                const isSessionActive = !!activeSessionData;
-
-                // Presence Logic:
-                let rawStatus = (rtdbStatus?.state || 'offline') as 'online' | 'background' | 'offline';
-
-                // LAST SEEN FALLBACK STRATEGY
-                // Priority: RTDB lastChanged > Firestore lastLoginAt
-                let effectiveLastSeen = rtdbStatus?.lastSeenAt || lastLoginMs;
-
-                // --- 3. SESSION-CENTRIC CLASSIFICATION (STRICT FINAL) ---
-
-                // PROBLEM 1 FIX: STALENESS CHECK (90s)
-                // If the user hasn't heartbeated or updated visibility in 90s, they are OFFLINE.
-                // We do NOT trust 'state: online' blindly.
-                const TIME_SINCE_SEEN = NOW - effectiveLastSeen;
-                if (effectiveLastSeen > 0 && TIME_SINCE_SEEN > 90000) {
-                    // 90s Threshold (Heartbeat is 30s-60s)
-                    rawStatus = 'offline';
-                }
-
-                let finalMode = 'none';
-                let sortRank = 7;
-
-                // RULE 2: STUDY STATE IS SESSION-DRIVEN (No other factor)
-                // This is calculated independently of Presence Group for the "Study State" column
-                const strictStudyMode = isSessionActive ? 'in_session' : 'no_session';
-
-                // STATUS DEFINITIONS (STRICT 7-TIER)
-                if (isSessionActive) {
-                    // MUST BE IN SESSION (Study State = In Session)
-                    if (rawStatus === 'online') {
-                        // 1. Online & In Session
-                        finalMode = 'in_session';
-                        sortRank = 1;
-                    } else if (rawStatus === 'background') {
-                        // 3. Background (In Session)
-                        finalMode = 'background_session';
-                        sortRank = 3;
-                    } else {
-                        // 5. Offline In Session
-                        // (Disconnected but session not ended)
-                        finalMode = 'offline_session';
-                        sortRank = 5;
-                    }
-                } else {
-                    // NO SESSION (Study State = No Session)
-                    if (rawStatus === 'online') {
-                        // 2. Online & No Session
-                        finalMode = 'browsing';
-                        sortRank = 2;
-                    } else if (rawStatus === 'background') {
-                        // 4. Background (No Session)
-                        finalMode = 'idle';
-                        sortRank = 4;
-                    } else {
-                        // OFFLINE
-                        if (NOW - lastLoginMs > SEVEN_DAYS_MS) {
-                            // 7. Inactive (> 7 Days) - RED ALERT
-                            finalMode = 'inactive';
-                            sortRank = 7;
-                        } else {
-                            // 6. Offline (Recent)
-                            finalMode = 'offline_recent';
-                            sortRank = 6;
-                        }
-                    }
-                }
-
-                // SAFETY FALLBACK (MANDATORY per Issue 2)
-                if (!sortRank) {
-                    console.warn(`[AdminMetrics] User ${uid} fell through logic. Defaulting to Offline Recent.`);
-                    finalMode = 'offline_recent';
-                    sortRank = 6;
-                }
-
-                // --- AVATAR PRESENCE DOT Logic (STRICT SINGLE SOURCE OF TRUTH) ---
-                // RULE: SINGLE SOURCE OF TRUTH "presenceState"
-                // Values: 'ONLINE', 'BACKGROUND', 'OFFLINE_IN_SESSION', 'OFFLINE', 'INACTIVE'
-
-                let presenceDotStatus = 'OFFLINE'; // Default
-                let dotColor = 'gray';             // Default
-
-                if (rawStatus === 'online') {
-                    presenceDotStatus = 'ONLINE';
-                    dotColor = 'green';
-                } else if (rawStatus === 'background') {
-                    presenceDotStatus = 'BACKGROUND';
-                    dotColor = 'blue';
-                } else {
-                    // OFFLINE BRANCH
-
-                    // 1. Check for Active Session (Study State Priority)
-                    if (isSessionActive) {
-                        presenceDotStatus = 'OFFLINE_IN_SESSION';
-                        dotColor = 'purple'; // "Studying without connection"
-                    } else {
-                        // 2. Check for Inactivity
-                        if (NOW - lastLoginMs > SEVEN_DAYS_MS) {
-                            presenceDotStatus = 'INACTIVE';
-                            dotColor = 'red';
-                        } else {
-                            presenceDotStatus = 'OFFLINE';
-                            dotColor = 'gray'; // Offline Recent
-                        }
-                    }
-                }
-
-                // VERIFICATION CHECK:
-                // If dotColor is not one of green, blue, red, gray -> Something wrong.
-                // But logic above guarantees it.
-
-                // --- 4. COUNTERS LOGIC ---
-                // Online = groups (1 + 2)
-                if (sortRank === 1 || sortRank === 2) onlineCount++;
-
-                // --- 5. LAST SEEN TEXT ---
-                let lastSeenText = '';
-                if (sortRank >= 5) { // Offline ranks
-                    if (effectiveLastSeen > 0) {
-                        const diff = NOW - effectiveLastSeen;
-                        if (diff < 60000) lastSeenText = 'Just now';
-                        else if (diff < 3600000) lastSeenText = `${Math.floor(diff / 60000)}m ago`;
-                        else if (diff < 86400000) lastSeenText = `${Math.floor(diff / 3600000)}h ago`;
-                        else lastSeenText = `${Math.floor(diff / 86400000)}d ago`;
-                    } else {
-                        lastSeenText = 'Never';
-                    }
-                }
-
-                // --- 6. DATA PREP ---
-                const studyState = {
-                    mode: strictStudyMode, // STRICT: 'in_session' | 'no_session'
-                    lastInteractionAt: effectiveLastSeen,
-                    sessionActive: isSessionActive,
-                    startTime: activeSessionData?.startedAt || null,
-                    sessionContext: activeSessionData ? {
-                        id: activeSessionData.sessionId,
-                        lectureId: activeSessionData.lectureId,
-                        subjectId: activeSessionData.subjectId
-                    } : null
-                };
-
-                const presenceState = {
-                    status: rawStatus,
-                    dotStatus: presenceDotStatus, // EXPOSED SOURCE OF TRUTH
-                    lastSeenAt: effectiveLastSeen,
-                    currentPage: rtdbStatus?.currentPage || null
-                };
-
-                // Sorting Timestamp:
-                // 1) activeSession.lastHeartbeat (Not tracked explicitly? use lastSeenAt if in session)
-                // 2) presence.lastSeenAt
-                // 3) profile.lastLoginAt
-                const sortTimestamp = effectiveLastSeen;
-
-                combined.push({
-                    ...profile,
-                    name: profile.fullName || profile.name || profile.onboardingName || "User",
-                    presence: presenceState,
-                    study: studyState,
-                    dotColor, // Derived from strict presenceDotStatus
-                    lastSeenText,
-                    sortRank,
-                    sortTimestamp // Validation helper
-                });
-            });
-
-            // --- FINAL SORT ---
-            // 1. Sort by Rank (Ascending)
-            // 2. Sort by Recency (Descending) inside Rank
-            combined.sort((a, b) => {
-                if (a.sortRank !== b.sortRank) return a.sortRank - b.sortRank;
-                return b.sortTimestamp - a.sortTimestamp;
-            });
-
-            // --- AGGREGATE METRICS ---
             let stats = {
                 onlineCount: 0,
                 inSessionCount: 0,
@@ -245,25 +107,185 @@ export const AdminMetricsService = {
                 inactiveCount: 0
             };
 
-            combined.forEach(s => {
-                // Online = groups (1 + 2)
-                if (s.sortRank === 1 || s.sortRank === 2) stats.onlineCount++; // Double count check? No, onlineCount var above was local. 
+            const NOW = Date.now();
+            const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+            const NINETY_SECONDS = 90 * 1000;
 
-                // Studying = groups (1)
-                if (s.sortRank === 1) stats.inSessionCount++;
+            // 1. Identify Population (RTDB Status is the primary signal for existence in the "Live" system)
+            // But we also include RTDB Users just in case.
+            const allUids = new Set<string>();
+            rtdbUsersMap.forEach((_, key) => allUids.add(key));
+            rtdbStatusMap.forEach((_, key) => allUids.add(key));
 
-                // Focusing right now = groups (3 + 5) (Background/Offline but session active)
-                if (s.sortRank === 3 || s.sortRank === 5) stats.backgroundStudyingCount++;
+            allUids.forEach(uid => {
+                // DATA SOURCES
+                const rtdbUser = rtdbUsersMap.get(uid) || {};
+                const rtdbStatus = rtdbStatusMap.get(uid);
+                const fsProfile = firestoreProfileCache.get(uid);
 
-                // Inactive = group (7)
-                if (s.sortRank === 7) stats.inactiveCount++;
+                // 2. HYDRATION TRIGGER
+                if (!fsProfile && !rtdbUser.fullName) {
+                    fetchProfile(uid);
+                }
 
-                // Offline Recent (6)
-                if (s.sortRank === 6) stats.offlineRecentCount++;
+                // MERGE PROFILE (Priority: RTDB (Live) > Firestore (Truth/Stale))
+                // For live updates to work without refresh, RTDB must override FS cache.
+                const profile = { ...fsProfile, ...rtdbUser };
+
+                // 3. PRESENCE ANALYSIS
+                let rawState = rtdbStatus?.state || 'offline';
+                // Prioritize Status Timestamp > Profile Last Login
+                const lastSeen = rtdbStatus?.lastSeenAt || rtdbStatus?.lastChanged || profile.lastLoginAt || 0;
+
+                // STALENESS CHECK
+                const timeSinceSeen = NOW - lastSeen;
+                if (timeSinceSeen > NINETY_SECONDS && rawState !== 'offline') {
+                    rawState = 'offline'; // Force offline if stale
+                }
+
+                // SESSION DETECTION
+                // Check RTDB first
+                // MANDATORY SOURCE OF TRUTH: activeSession OR inSession=true OR currentSession
+                // This must act independently of presence state.
+                let sessionContext = rtdbStatus?.activeSession || rtdbStatus?.currentSession || null;
+                const isSessionActive = !!(sessionContext || rtdbStatus?.inSession === true);
+
+                // 4. CLASSIFICATION (DETERMINISTIC STATE MACHINE)
+                let mode = 'none';
+                let sortRank = 7;
+                let dotColor = 'gray'; // Default
+                let statusLabel = 'Offline'; // Default Label
+
+                // PRIORITY 1: HEARTBEAT EXPIRED (Force Offline)
+                if (rawState !== 'offline' && timeSinceSeen > NINETY_SECONDS) {
+                    rawState = 'offline';
+                }
+
+                if (isSessionActive) {
+                    // --- SESSION ACTIVE CASE ---
+                    // STRICT COUNTER: All active sessions contribute to inSessionCount
+                    stats.inSessionCount++;
+
+                    if (rawState === 'online') {
+                        // CASE: Active Session + Online
+                        // USER RULE: GREEN, Label: "Studying"
+                        mode = 'in_session';
+                        sortRank = 1;
+                        dotColor = 'green';
+                        statusLabel = 'Studying';
+                        stats.onlineCount++;
+                    } else if (rawState === 'background') {
+                        // CASE: Active Session + Background
+                        // USER RULE: BLUE, Label: "Background (Studying)"
+                        mode = 'background_session';
+                        sortRank = 3;
+                        dotColor = 'blue';
+                        statusLabel = 'Background (Studying)';
+                        stats.backgroundStudyingCount++;
+                    } else {
+                        // CASE: Active Session + Offline (Session left open / crash)
+                        // USER RULE: PURPLE, Label: "Session Open"
+                        mode = 'offline_session';
+                        sortRank = 5;
+                        dotColor = 'purple';
+                        statusLabel = 'Session Open';
+                        // Not active/online stats
+                    }
+                } else {
+                    // --- NO SESSION CASE ---
+                    if (rawState === 'online') {
+                        // CASE: Online but no session
+                        // USER RULE: GREEN, Label: "Online"
+                        mode = 'browsing';
+                        sortRank = 2;
+                        dotColor = 'green';
+                        statusLabel = 'Online';
+                        stats.onlineCount++;
+                    } else if (rawState === 'background') {
+                        // CASE: Background / Idle
+                        // USER RULE: BLUE, Label: "Background"
+                        mode = 'idle';
+                        sortRank = 4;
+                        dotColor = 'blue';
+                        statusLabel = 'Background';
+                    } else {
+                        // CASE: Offline
+                        if (NOW - lastSeen > SEVEN_DAYS_MS) {
+                            // Offline > 7 days
+                            // USER RULE: RED, Label: "Inactive"
+                            mode = 'inactive';
+                            sortRank = 8; // Moved to 8 to be last
+                            dotColor = 'red';
+                            statusLabel = 'Inactive';
+                            stats.inactiveCount++;
+                        } else {
+                            // Offline < 7 days
+                            // USER RULE: GRAY, Label: "Offline"
+                            mode = 'offline_recent';
+                            sortRank = 7; // Less than inactive
+                            dotColor = 'gray';
+                            statusLabel = 'Offline';
+                            stats.offlineRecentCount++;
+                        }
+                    }
+                }
+
+                // 5. UI PREP (Color is already set by logic above)
+                let lastSeenText = 'Never';
+                if (lastSeen > 0) {
+                    const diff = NOW - lastSeen;
+                    if (diff < 60000) lastSeenText = 'Just now';
+                    else if (diff < 3600000) lastSeenText = `${Math.floor(diff / 60000)}m ago`;
+                    else if (diff < 86400000) lastSeenText = `${Math.floor(diff / 3600000)}h ago`;
+                    else lastSeenText = `${Math.floor(diff / 86400000)}d ago`;
+                }
+
+                // Name Construct
+                const displayName = profile.fullName || profile.name || profile.email || `Student (${uid.substring(0, 5)})`;
+                const displayRole = profile.role || 'STUDENT';
+
+                combined.push({
+                    id: uid,
+                    ...profile,
+                    name: displayName,
+                    role: displayRole,
+                    presence: {
+                        status: rawState,
+                        lastSeenAt: lastSeen,
+                        dotStatus: rawState.toUpperCase(),
+                        currentPage: rtdbStatus?.currentPage || null
+                    },
+                    study: {
+                        mode: mode,
+                        sessionActive: isSessionActive,
+                        lastInteractionAt: lastSeen,
+                        sessionContext: sessionContext,
+                        // TIME SOURCE: Extract from context (RTDB usually has createdAt or startedAt)
+                        startTime: sessionContext?.createdAt || sessionContext?.startedAt || sessionContext?.startTime || null,
+                        // UI HELPER: Pre-calculated Badge Props
+                        // STRICT RULE: "In Session" or "-" (handled by UI if null)
+                        badge: isSessionActive ? {
+                            label: 'In Session',
+                            color: 'indigo' // Uniform color for the badge itself
+                        } : null
+                    },
+                    dotColor, // Avatar Dot retains the detailed status color (Green/Blue/Purple)
+                    lastSeenText, // STATUS COLUMN Text (e.g. "Just now")
+                    sortRank,
+                    sortTimestamp: lastSeen
+                });
+            });
+
+            // SORT
+            combined.sort((a, b) => {
+                // 1. Rank (Online > Idle > Offline)
+                if (a.sortRank !== b.sortRank) return a.sortRank - b.sortRank;
+                // 2. Recency
+                return b.sortTimestamp - a.sortTimestamp;
             });
 
             callback({
-                students: combined, // Sorted by Rank
+                students: combined, // Sorted List
                 total: combined.length,
                 subscribed: 0,
                 onlineCount: stats.onlineCount,
@@ -271,51 +293,43 @@ export const AdminMetricsService = {
             });
         };
 
-        // 5. Subscriptions
+        // LISTENERS
+        const statusRef = ref(dbRTDB, 'status');
+        const usersRef = ref(dbRTDB, 'users');
 
-        // A. Firestore Profiles (Static)
-        const unsubProfiles = onSnapshot(profilesQuery, (snap) => {
-            // CRITICAL FIX: Rebuild Map to handle Deletions
-            studentsMap.clear();
-
-            snap.docs.forEach(doc => {
-                const uid = doc.ref.parent.parent?.id;
-                if (uid && doc.data().role !== 'ADMIN') {
-                    const d = doc.data();
-                    studentsMap.set(uid, { id: uid, ...d, name: d.fullName || d.name });
-                }
-            });
+        const onStatus = onValue(statusRef, (snap) => {
+            const val = snap.val();
+            rtdbStatusMap.clear();
+            if (val) {
+                Object.keys(val).forEach(key => rtdbStatusMap.set(key, val[key]));
+            }
             emit();
-        }, (error) => {
-            console.error("[AdminMetrics] PROFILES ERROR:", error);
         });
 
-        // B. RTDB Status (Live)
-        let refOffWrapper = () => { };
-        if (dbRTDB) {
-            const statusRef = ref(dbRTDB, 'status');
-            const onStatusChange = onValue(statusRef, (snap) => {
-                const val = snap.val();
-                if (val) {
-                    liveStatusMap.clear();
-                    Object.keys(val).forEach(uid => {
-                        liveStatusMap.set(uid, val[uid]);
-                    });
-                } else {
-                    liveStatusMap.clear();
-                }
-                emit();
-            });
-            refOffWrapper = () => onStatusChange();
-        }
+        const onUsers = onValue(usersRef, (snap) => {
+            const val = snap.val();
+            rtdbUsersMap.clear();
+            if (val) {
+                Object.keys(val).forEach(key => {
+                    // Normalize potential nesting: users/{uid}/profile/main OR users/{uid}/profile OR users/{uid}
+                    // We prioritize 'profile' objects if they exist.
+                    const d = val[key];
+                    const p = d.profile?.main || d.profile || d;
+                    rtdbUsersMap.set(key, p);
+                });
+            }
+            emit();
+        });
 
-        // C. Heartbeat Re-evaluator (Updates "time ago" text)
-        const reval = setInterval(emit, 5000);
+        // Heartbeat Re-evaluator (Every 5s check for staleness)
+        const intervalId = setInterval(() => {
+            emit();
+        }, 5000);
 
         return () => {
-            clearInterval(reval);
-            unsubProfiles();
-            refOffWrapper();
+            off(statusRef);
+            off(usersRef);
+            clearInterval(intervalId);
         };
     }
 };

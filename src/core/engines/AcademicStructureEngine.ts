@@ -1,5 +1,6 @@
-import { Subject, Lecture, Difficulty, MentalLoad, LectureType } from '../types';
+import { Subject, Lecture, Difficulty, MentalLoad, LectureType, LectureStudyMode } from '../types';
 import { CognitiveEngine } from './CognitiveEngine';
+import { getModeMultiplier, calculateCustomExpectedTime, recommendStudyMode } from '@/lib/studyModeHelpers';
 
 export const AcademicStructureEngine = {
     createSubject: (name: string, examDate: string, difficulty: Difficulty): Subject => {
@@ -34,7 +35,8 @@ export const AcademicStructureEngine = {
         understandingScore: number, // 1-10
         mentalLoad: MentalLoad,
         type: LectureType,
-        studentState: { phase: 'INIT' | 'NOVICE' | 'ADAPTIVE', index: number }
+        studentState: { phase: 'INIT' | 'NOVICE' | 'ADAPTIVE', index: number },
+        studyMode?: LectureStudyMode // NEW: Optional study mode
     ): Lecture => {
         // Basic validation
         if (duration <= 0) throw new Error("Duration must be positive");
@@ -79,7 +81,18 @@ export const AcademicStructureEngine = {
         // Calculate basic weight
         const weight = duration * relativeDifficulty;
 
-        // --- 3. EXPECTED STUDY TIME (PERSISTENT PHASE) ---
+        // --- 3. STUDY MODE SYSTEM ---
+        // Default to 'standard' if not provided
+        const finalMode = studyMode || 'standard';
+        const multiplier = getModeMultiplier(finalMode);
+        const customExpectedTime = calculateCustomExpectedTime(duration, finalMode);
+
+        // Get recommendation
+        const recommendation = recommendStudyMode(relativeDifficulty);
+
+        // --- 4. EXPECTED STUDY TIME (PERSISTENT PHASE) ---
+        // NOTE: This is the OLD expectedDuration for backward compatibility
+        // The NEW system uses customExpectedTime from study mode
         let expectedDuration = 0;
 
         switch (studentState.phase) {
@@ -113,7 +126,13 @@ export const AcademicStructureEngine = {
             cognitiveWeight: weight,
             stability: 0,
             relativeDifficulty, // Persisted Strictly
-            expectedDuration,
+            expectedDuration, // OLD system (for backward compatibility)
+            // NEW: Study Mode System fields
+            studyMode: finalMode,
+            multiplier,
+            customExpectedTime,
+            recommendedMode: recommendation.mode,
+            recommendationReason: recommendation.reason,
             createdAt: new Date().toISOString()
         };
     }

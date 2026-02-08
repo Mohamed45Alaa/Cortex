@@ -97,9 +97,8 @@ export const StudentsTable = ({ students }: Props) => {
                             <tr>
                                 <th className="px-6 py-4 bg-slate-900 border-y border-l border-white/10 first:rounded-l-[14px] border-r-0 text-left">Student</th>
                                 <th className="px-6 py-4 bg-slate-900 border-y border-white/10 text-center border-l-0 border-r-0">Status</th>
-                                <th className="px-6 py-4 bg-slate-900 border-y border-white/10 text-center border-l-0 border-r-0">Academic Info</th>
                                 <th className="px-6 py-4 bg-slate-900 border-y border-white/10 text-center border-l-0 border-r-0">Study State</th>
-                                <th className="px-6 py-4 bg-slate-900 border-y border-white/10 text-center border-l-0 border-r-0">Joined</th>
+                                <th className="px-6 py-4 bg-slate-900 border-y border-white/10 text-center border-l-0 border-r-0">Academic Info</th>
                                 <th className="px-6 py-4 bg-slate-900 border-y border-r border-white/10 text-center last:rounded-r-[14px] border-l-0">Actions</th>
                             </tr>
                         </thead>
@@ -277,23 +276,15 @@ export const StudentsTable = ({ students }: Props) => {
                                                                 })()}
                                                             </td>
 
-                                                            {/* COL 1.5: ACADEMIC INFO */}
-                                                            <td className="px-6 py-4 text-center bg-[#0f1523] border-y border-white/[0.04] group-hover:bg-[#151b2b] group-hover:border-white/[0.08] transition-colors">
-                                                                <div className="flex flex-col items-center">
-                                                                    <span className="text-xs text-slate-300 font-medium">{student.university || '-'}</span>
-                                                                    <span className="text-[10px] text-slate-500">{student.faculty || ''} {student.academicYear ? `• ${student.academicYear}` : ''}</span>
-                                                                </div>
-                                                            </td>
-
-                                                            {/* COL 2: STUDY STATE */}
                                                             {/* COL 2: STUDY STATE */}
                                                             <td className="px-6 py-4 text-center bg-[#0f1523] first:rounded-l-[16px] last:rounded-r-[16px] border-y border-white/[0.04] first:border-l last:border-r group-hover:bg-[#151b2b] group-hover:border-white/[0.08] transition-colors">
                                                                 {(() => {
-                                                                    // STRICT RULE: "No Session" vs "In Session"
-                                                                    // Logic comes purely from study.mode ('in_session' | 'no_session')
+                                                                    // STRICT RULE: Render badge if study.badge exists (Session Active)
+                                                                    // Calculated by AdminMetricsService based on session existence + status
+                                                                    const badge = (study as any).badge;
 
-                                                                    if (study.mode === 'in_session') {
-                                                                        // Check for Zombie/Expired Sessions (>12h)
+                                                                    if (badge) {
+                                                                        // Check for Zombie/Expired Sessions (>12h) override
                                                                         const startTime = (study as any).startTime || (presence as any).lastSeen || (presence as any).lastSeenAt;
                                                                         if (startTime) {
                                                                             const diff = Date.now() - new Date(startTime).getTime();
@@ -306,20 +297,44 @@ export const StudentsTable = ({ students }: Props) => {
                                                                                 );
                                                                             }
                                                                         }
+
+                                                                        // STRICT RULE: Uniform Badge for "In Session"
+                                                                        const badgeClass = 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20 shadow-sm';
+                                                                        const iconColor = 'text-indigo-400';
+
+                                                                        // ELAPSED TIME CALCULATION
+                                                                        let elapsedParams = '';
+                                                                        const sessionStart = (study as any).startTime;
+                                                                        if (sessionStart) {
+                                                                            const diff = Math.max(0, Date.now() - new Date(sessionStart).getTime());
+                                                                            const mins = Math.floor(diff / 60000);
+                                                                            if (mins < 60) {
+                                                                                elapsedParams = ` • ${mins}m`;
+                                                                            } else {
+                                                                                const h = Math.floor(mins / 60);
+                                                                                const m = mins % 60;
+                                                                                elapsedParams = ` • ${h}h ${m}m`;
+                                                                            }
+                                                                        }
+
                                                                         return (
-                                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-[#1e293b] text-indigo-300 border border-indigo-500/20 shadow-sm shadow-indigo-500/10">
-                                                                                <Clock size={12} strokeWidth={2.5} /> In Session
+                                                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border ${badgeClass}`}>
+                                                                                <Clock size={12} className={iconColor} /> {badge.label}{elapsedParams}
                                                                             </span>
                                                                         );
                                                                     }
 
-                                                                    // FALLBACK: No Session (Explicitly Empty per Rule 1)
-                                                                    // "Study State = EMPTY (no text, no badge)"
-                                                                    return null;
+                                                                    // FALLBACK: No Session -> "-" (Dash Only)
+                                                                    return <span className="text-slate-600 font-mono text-xs">-</span>;
                                                                 })()}
                                                             </td>
-                                                            <td className="px-6 py-4 text-center bg-[#0f1523] first:rounded-l-[16px] last:rounded-r-[16px] border-y border-white/[0.04] first:border-l last:border-r group-hover:bg-[#151b2b] group-hover:border-white/[0.08] transition-colors text-slate-500 font-mono text-xs" suppressHydrationWarning>
-                                                                {student.createdAt ? new Date(student.createdAt).toISOString().split('T')[0] : "-"}
+
+                                                            {/* COL 1.5: ACADEMIC INFO */}
+                                                            <td className="px-6 py-4 text-center bg-[#0f1523] border-y border-white/[0.04] group-hover:bg-[#151b2b] group-hover:border-white/[0.08] transition-colors">
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className="text-xs text-slate-300 font-medium">{student.university || '-'}</span>
+                                                                    <span className="text-[10px] text-slate-500">{student.faculty || ''} {student.academicYear ? `• ${student.academicYear}` : ''}</span>
+                                                                </div>
                                                             </td>
                                                             <td className="px-6 py-4 text-center bg-[#0f1523] first:rounded-l-[16px] last:rounded-r-[16px] border-y border-white/[0.04] first:border-l last:border-r group-hover:bg-[#151b2b] group-hover:border-white/[0.08] transition-colors rounded-r-[16px]">
                                                                 <button className="p-2 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-colors">

@@ -13,7 +13,7 @@ interface AccountSettingsViewProps {
 export function AccountSettingsView({ lang }: AccountSettingsViewProps) {
     const { authState, setProfile } = useStore();
     const user = authState.user;
-    const isRtl = lang === 'ar';
+    // const isRtl = lang === 'ar'; // REMOVED Strict LTR Rule
 
     // Normalized Identity State
     const [formData, setFormData] = useState({
@@ -136,7 +136,7 @@ export function AccountSettingsView({ lang }: AccountSettingsViewProps) {
     };
 
     return (
-        <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', direction: isRtl ? 'rtl' : 'ltr' }}>
+        <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
 
             {/* Header */}
             <div style={{ marginBottom: '2rem' }}>
@@ -158,14 +158,14 @@ export function AccountSettingsView({ lang }: AccountSettingsViewProps) {
                         {t.name_label}
                     </label>
                     <div className="relative group">
-                        <div className={`absolute top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors ${isRtl ? 'right-4' : 'left-4'}`}>
+                        <div className={`absolute top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors left-4`}>
                             <User size={18} />
                         </div>
                         <input
                             type="text"
                             value={formData.fullName}
                             onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
-                            className={`w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 focus:bg-slate-950/80 transition-all ${isRtl ? 'pr-12 pl-4' : 'pl-12 pr-4'} ${errors.name ? 'border-red-500/50' : ''}`}
+                            className={`w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 focus:bg-slate-950/80 transition-all pl-12 pr-4 ${errors.name ? 'border-red-500/50' : ''}`}
                             placeholder="ex. Mohamed Ahmed Mahmoud"
                         />
                     </div>
@@ -195,14 +195,14 @@ export function AccountSettingsView({ lang }: AccountSettingsViewProps) {
                         </div>
 
                         <div className="relative group flex-1">
-                            <div className={`absolute top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors ${isRtl ? 'right-4' : 'left-4'}`}>
+                            <div className={`absolute top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors left-4`}>
                                 <Phone size={18} />
                             </div>
                             <input
                                 type="tel"
                                 value={formData.phone}
                                 onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value.replace(/[^0-9]/g, '') }))}
-                                className={`w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 focus:bg-slate-950/80 transition-all ${isRtl ? 'pr-12 pl-4' : 'pl-12 pr-4'} ${errors.phone ? 'border-red-500/50' : ''}`}
+                                className={`w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 focus:bg-slate-950/80 transition-all pl-12 pr-4 ${errors.phone ? 'border-red-500/50' : ''}`}
                                 placeholder="100 123 4567"
                             />
                         </div>
@@ -249,17 +249,75 @@ export function AccountSettingsView({ lang }: AccountSettingsViewProps) {
                     FirestoreService.saveUserProfile(user?.id || '', updates);
                 }}
             />
+
+            {/* COGNITIVE PROFILE (SYSTEM B - EXCLUSIVE HOME) */}
+            <CognitiveProfileSection lang={lang} />
         </div>
     );
 }
 
 // --- SUB-COMPONENT: ACADEMIC PROFILE ---
-import { GraduationCap, School, BookOpen } from 'lucide-react';
+import { GraduationCap, School, BookOpen, Brain, Activity } from 'lucide-react';
 import { universities } from '@/config/universities';
 import { faculties } from '@/config/faculties';
 
+function CognitiveProfileSection({ lang }: { lang: Language }) {
+    const { profile } = useStore();
+    const ci = profile.cumulativeIndex || 5.0; // Default baseline
+
+    const t = {
+        title: lang === 'en' ? 'Cognitive Profile' : 'الملف المعرفي',
+        subtitle: lang === 'en' ? 'Adaptive learning metrics' : 'مقاييس التعلم التكيفي',
+        load_label: lang === 'en' ? 'Cumulative Cognitive Load' : 'الحمل المعرفي التراكمي',
+        desc: lang === 'en' ? 'Your rolling average index (Last 5 Sessions). This determines your future study intensity.' : 'متوسط المؤشر المتداول (آخر 5 جلسات). هذا يحدد كثافة دراستك المستقبلية.'
+    };
+
+    const getColor = (val: number) => {
+        if (val >= 8.5) return 'text-emerald-400';
+        if (val >= 5.5) return 'text-yellow-400';
+        return 'text-red-400';
+    };
+
+    return (
+        <div style={{ marginTop: '2rem' }}>
+            {/* Header */}
+            <div style={{ marginBottom: '2rem' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#F8FAFC' }}>
+                    <Brain size={22} className="text-purple-500" />
+                    {t.title}
+                </h1>
+                <p style={{ color: '#64748B', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+                    {t.subtitle}
+                </p>
+            </div>
+
+            <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-8 backdrop-blur-sm">
+                <div className="flex flex-col items-center text-center">
+                    <h3 className="text-sm font-medium text-slate-400 uppercase tracking-widest mb-4">
+                        {t.load_label}
+                    </h3>
+                    <div className={`text-6xl font-black mb-4 ${getColor(ci)}`}>
+                        {ci.toFixed(1)}
+                    </div>
+                    <p className="text-sm text-slate-500 max-w-md">
+                        {t.desc}
+                    </p>
+
+                    {/* Multiplier Badge */}
+                    <div className="mt-6 px-4 py-2 bg-slate-800 rounded-lg border border-white/5">
+                        <span className="text-xs text-slate-400 uppercase tracking-wider mr-2">Multiplier Effect:</span>
+                        <span className="font-mono text-white font-bold">
+                            {ci >= 8.5 ? '0.85x (Accelerated)' : ci >= 5.5 ? '1.0x (Standard)' : '1.3x (Assisted)'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function AcademicProfileSection({ user, lang, onUpdate, sectionRef }: { user: any, lang: Language, onUpdate: (d: any) => void, sectionRef?: React.RefObject<HTMLDivElement | null> }) {
-    const isRtl = lang === 'ar';
+    // const isRtl = lang === 'ar'; // REMOVED Strict LTR Rule
 
     // Search States
     const [uniSearch, setUniSearch] = useState('');
@@ -329,7 +387,7 @@ function AcademicProfileSection({ user, lang, onUpdate, sectionRef }: { user: an
     console.log("Faculties Config:", faculties);
 
     return (
-        <div ref={sectionRef} style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', direction: isRtl ? 'rtl' : 'ltr' }}>
+        <div ref={sectionRef} style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
 
             {/* Header */}
             <div style={{ marginBottom: '2rem' }}>
@@ -350,7 +408,7 @@ function AcademicProfileSection({ user, lang, onUpdate, sectionRef }: { user: an
                         {t.uni_label}
                     </label>
                     <div className="relative group">
-                        <div className={`absolute top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors ${isRtl ? 'right-4' : 'left-4'}`}>
+                        <div className={`absolute top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors left-4`}>
                             <School size={18} />
                         </div>
                         <input
@@ -364,16 +422,15 @@ function AcademicProfileSection({ user, lang, onUpdate, sectionRef }: { user: an
                             onFocus={() => setShowUniList(true)}
                             // Increased delay to allow click event registration
                             onBlur={() => setTimeout(() => setShowUniList(false), 300)}
-                            className={`w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-slate-950/80 transition-all ${isRtl ? 'pr-12 pl-4' : 'pl-12 pr-4'}`}
+                            className={`w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-slate-950/80 transition-all pl-12 pr-4`}
                             placeholder={t.placeholder_uni}
                         />
-                        {/* Dropdown - Fixed Z-Index and Max-Height */}
                         {showUniList && (uniSearch.length > 0 || academicData.university.length < 3) && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-[#0B1120] border border-white/10 rounded-xl shadow-2xl overflow-y-auto max-h-60 z-[100] text-left dir-ltr">
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-[#0B1120] border border-white/10 rounded-xl shadow-2xl overflow-y-auto max-h-60 z-[100] text-left">
                                 {filteredUnis.length > 0 ? filteredUnis.map((u, i) => (
                                     <button
                                         key={i}
-                                        className={`w-full text-left px-4 py-3 hover:bg-white/10 text-sm text-slate-300 flex justify-between items-center ${isRtl ? 'flex-row-reverse' : ''}`}
+                                        className={`w-full text-left px-4 py-3 hover:bg-white/10 text-sm text-slate-300 flex justify-between items-center`}
                                         onMouseDown={(e) => {
                                             e.preventDefault(); // Prevent blur
                                             setAcademicData(prev => ({ ...prev, university: u.name }));
@@ -399,7 +456,7 @@ function AcademicProfileSection({ user, lang, onUpdate, sectionRef }: { user: an
                         {t.fac_label}
                     </label>
                     <div className="relative group">
-                        <div className={`absolute top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors ${isRtl ? 'right-4' : 'left-4'}`}>
+                        <div className={`absolute top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors left-4`}>
                             <BookOpen size={18} />
                         </div>
                         <input
@@ -412,16 +469,15 @@ function AcademicProfileSection({ user, lang, onUpdate, sectionRef }: { user: an
                             }}
                             onFocus={() => setShowFacList(true)}
                             onBlur={() => setTimeout(() => setShowFacList(false), 300)}
-                            className={`w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-slate-950/80 transition-all ${isRtl ? 'pr-12 pl-4' : 'pl-12 pr-4'}`}
+                            className={`w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-slate-950/80 transition-all pl-12 pr-4`}
                             placeholder={t.placeholder_fac}
                         />
-                        {/* Faculty Dropdown */}
                         {showFacList && (facSearch.length > 0 || academicData.faculty.length < 3) && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-[#0B1120] border border-white/10 rounded-xl shadow-2xl overflow-y-auto max-h-60 z-[100] text-left dir-ltr">
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-[#0B1120] border border-white/10 rounded-xl shadow-2xl overflow-y-auto max-h-60 z-[100] text-left">
                                 {filteredFaculties.length > 0 ? filteredFaculties.map((f, i) => (
                                     <button
                                         key={i}
-                                        className={`w-full text-left px-4 py-3 hover:bg-white/10 text-sm text-slate-300 flex items-center gap-2 ${isRtl ? 'flex-row-reverse text-right' : ''}`}
+                                        className={`w-full text-left px-4 py-3 hover:bg-white/10 text-sm text-slate-300 flex items-center gap-2`}
                                         onMouseDown={(e) => {
                                             e.preventDefault();
                                             setAcademicData(prev => ({ ...prev, faculty: f }));
@@ -457,7 +513,7 @@ function AcademicProfileSection({ user, lang, onUpdate, sectionRef }: { user: an
                                 </option>
                             ))}
                         </select>
-                        <div className={`absolute top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 ${isRtl ? 'left-4' : 'right-4'}`}>
+                        <div className={`absolute top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 right-4`}>
                             <div className="border-l border-b border-slate-500 w-2 h-2 -rotate-45 transform translate-y-[-2px]"></div>
                         </div>
                     </div>

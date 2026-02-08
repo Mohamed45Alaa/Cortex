@@ -15,7 +15,8 @@ import {
     ChevronsLeft,
     ChevronsRight,
     ChevronDown, // New
-    Languages    // New
+    Languages,    // New
+    Hammer       // Used for Tools
 } from 'lucide-react';
 import { useSystemStatus, useMediaQuery } from '@/core/hooks';
 import type { FlowState } from '../../core/engines/FlowEngine';
@@ -81,6 +82,35 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
         ? styles.mainContent // No margin on mobile
         : `${styles.mainContent} ${sidebarLocal ? styles.withSidebar : styles.fullWidth}`;
 
+    const handleEnterAdmin = async () => {
+        try {
+            // [STEP 4: FORCE TOKEN REFRESH]
+            if (authState.user?.id) {
+                const { getAuthInstance } = await import('@/core/services/firebase');
+                const auth = getAuthInstance();
+                if (auth?.currentUser) {
+                    console.log('[Admin] Refreshing token...');
+                    const tokenResult = await auth.currentUser.getIdTokenResult(true);
+
+                    if (tokenResult.claims.role !== 'admin') {
+                        // Fallback prompt if script wasn't run
+                        console.warn('Missing Admin Claim. Please run: node scripts/grant-admin.js <UID>');
+                        // We let them through ONLY if dev environment, otherwise alert
+                        if (process.env.NODE_ENV === 'production') {
+                            alert("Access Denied: Missing 'admin' custom claim.");
+                            return;
+                        }
+                    }
+                }
+            }
+            setAdminMode(true);
+        } catch (error) {
+            console.error('Admin Entry Failed:', error);
+            // Allow fallback entry if strictly needed or show error
+            setAdminMode(true);
+        }
+    };
+
     return (
         <div className={styles.layoutContainer}>
 
@@ -88,7 +118,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
             <main className={mainContentClass}>
 
                 {/* HEADS UP DISPLAY (Header) */}
-                <header className={styles.header}>
+                <header className={styles.header} dir="ltr">
                     <div className={styles.headerLeft}>
                         {/* NOTIFICATIONS & USER GROUP */}
                         <div className={styles.notificationArea}>
@@ -103,7 +133,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                     className={`${styles.textBtn} bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all`}
                                     style={{ border: '1px solid rgba(59, 130, 246, 0.3)' }}
                                 >
-                                    Sign In
+                                    {t.sign_in}
                                 </button>
                             ) : (
                                 <>
@@ -145,7 +175,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                                     className="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors"
                                                 >
                                                     <User size={16} className="text-indigo-400" />
-                                                    {t.settings || "Account Information"}
+                                                    {t.account_info}
                                                     {/* Fallback string if translation missing, though key is 'settings' in sidebar usually, maybe Add specific key? using settings for now */}
                                                 </button>
 
@@ -154,7 +184,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                                     className="w-full text-left px-4 py-3 text-sm text-slate-200 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors"
                                                 >
                                                     <Languages size={16} className="text-slate-400" />
-                                                    {lang === 'en' ? 'Switch to Arabic' : 'Switch to English'}
+                                                    {lang === 'en' ? t.switch_lang_ar : t.switch_lang_en}
                                                 </button>
 
                                                 <div className="h-px bg-white/5 my-1" />
@@ -164,7 +194,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                                     className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-3 transition-colors"
                                                 >
                                                     <LogOut size={16} />
-                                                    Sign Out
+                                                    {t.sign_out}
                                                 </button>
                                             </div>
                                         </>
@@ -178,10 +208,10 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                     {user?.role === 'ADMIN' && (
                         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                             <button
-                                onClick={() => setAdminMode(true)}
+                                onClick={handleEnterAdmin}
                                 className="text-[10px] font-bold text-indigo-400 border border-indigo-500/30 px-6 py-2 rounded-full hover:bg-indigo-500/10 transition-colors tracking-wide animate-pulse"
                             >
-                                ENTER ADMIN MODE
+                                {t.enter_admin}
                             </button>
                         </div>
                     )}
@@ -191,7 +221,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                         <div className={styles.globalControls}>
                             {!isMobile && (
                                 <button onClick={onToggleLang} className={styles.textBtn}>
-                                    {lang === 'en' ? 'EN | AR' : 'AR | EN'}
+                                    {t.lang_toggle_text}
                                 </button>
                             )}
                             <button onClick={onToggleTheme} className={styles.iconBtn}>
@@ -249,11 +279,18 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                             onClick={() => { onNavigate('DASHBOARD_HOME'); if (isMobile) setSidebarLocal(false); }}
                         />
                         <NavMethod
+                            icon={<Hammer size={20} />}
+                            label={t.MY_TOOLS}
+                            active={currentView === 'DASHBOARD_TOOLS'}
+                            onClick={() => { onNavigate('DASHBOARD_TOOLS'); if (isMobile) setSidebarLocal(false); }}
+                        />
+                        <NavMethod
                             icon={<BookOpen size={20} />}
                             label={t.sessions}
                             active={currentView === 'DASHBOARD_HISTORY'}
                             onClick={() => { onNavigate('DASHBOARD_HISTORY'); if (isMobile) setSidebarLocal(false); }}
                         />
+
 
                         <NavMethod
                             icon={<Settings size={20} />}

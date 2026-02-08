@@ -1,0 +1,149 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createFirebaseAdminApp } from "@/core/services/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
+
+export const dynamic = 'force-dynamic';
+
+// CONFIGURATION
+const HEARTBEAT_TTL_MS = 60 * 1000; // 60 Seconds allowed before death
+
+export async function POST(req: NextRequest) {
+    try {
+        // 1. AUTHENTICATION
+        const authHeader = req.headers.get("Authorization");
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        const idToken = authHeader.split("Bearer ")[1];
+        const adminApp = createFirebaseAdminApp();
+        const auth = adminApp.auth();
+        const rtdb = adminApp.database();
+        const db = adminApp.firestore();
+
+        // Verify Token
+        const decodedToken = await auth.verifyIdToken(idToken);
+        const uid = decodedToken.uid;
+
+        const body = await req.json();
+        const { action, payload } = body;
+
+        console.log(`[API/Session] User: ${uid} | Action: ${action}`);
+
+        // 2. ROUTING LOGIC
+
+        // --- ACTION: START SESSION ---
+        if (action === 'START') {
+            const { lectureId, subjectId } = payload;
+
+            // EMERGENCY OVERRIDE: BLINDLY START
+            // No Zombie Checks, No 409s, No Cleanup.
+            // Just overwrite RTDB and ensure user can study.
+
+            const activeSession = {
+                sessionId: `${uid}_${lectureId}_${Date.now()}`,
+                lectureId,
+                subjectId,
+                startedAt: Date.now(),
+                expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24h Cap (Safety only)
+            };
+
+            const statusRef = rtdb.ref(`status/${uid}`);
+            await statusRef.update({
+                state: 'online',
+                activeSession,
+                heartbeat: Date.now(),
+                lastSeenAt: Date.now(),
+                sessionTermination: null // Clear legacy kills
+            });
+
+            // Persist to Firestore (Audit Trail)
+            await db.collection('activeSessions').doc(activeSession.sessionId).set({
+                uid,
+                ...activeSession,
+                status: 'RUNNING',
+                createdAt: FieldValue.serverTimestamp()
+            });
+
+            return NextResponse.json({ success: true, session: activeSession });
+        }
+
+        // --- ACTION: PRESENCE (Visibility Change) ---
+        if (action === 'PRESENCE') {
+            const { state } = payload;
+            const statusRef = rtdb.ref(`status/${uid}`);
+            await statusRef.update({ state: state || 'online', lastSeenAt: Date.now() });
+            return NextResponse.json({ success: true });
+        }
+
+        // --- ACTION: HEARTBEAT ---
+        else if (action === 'HEARTBEAT') {
+            const { state } = payload || {};
+            const statusRef = rtdb.ref(`status/${uid}`);
+
+            // EMERGENCY OVERRIDE: BLIND UPDATE
+            // Do not check duration. Do not check if session exists on server.
+            // Just say "I am here" and update RTDB.
+
+            await statusRef.update({
+                state: state || 'online',
+                heartbeat: Date.now(),
+                lastSeenAt: Date.now()
+            });
+
+            // Optional: Update Firestore if valid, but DO NOT ERROR if missing
+            const statusSnap = await statusRef.get();
+            const activeSession = statusSnap.val()?.activeSession;
+            if (activeSession?.sessionId) {
+                await db.collection('activeSessions').doc(activeSession.sessionId).update({
+                    lastHeartbeat: FieldValue.serverTimestamp()
+                }).catch(e => console.log("Heartbeat Audit Skipped (Non-fatal)"));
+
+                return NextResponse.json({ success: true, mode: 'session' });
+            }
+
+            return NextResponse.json({ success: true, mode: 'browsing' });
+        }
+
+        // --- ACTION: END SESSION ---
+        else if (action === 'END') {
+            const statusRef = rtdb.ref(`status/${uid}`);
+            const statusSnap = await statusRef.get();
+            const activeSession = statusSnap.val()?.activeSession;
+
+            if (activeSession) {
+                // Archive in Firestore (Idempotent Set)
+                await db.collection('activeSessions').doc(activeSession.sessionId).set({
+                    status: 'COMPLETED',
+                    endedBy: 'USER',
+                    isValidForMetrics: true, // ELIGIBLE FOR METRICS
+                    endedAt: FieldValue.serverTimestamp()
+                }, { merge: true });
+            }
+
+            // Wipe RTDB (Always succeed)
+            await statusRef.update({
+                activeSession: null,
+                lastSeenAt: Date.now()
+            });
+
+            return NextResponse.json({ success: true });
+        }
+
+        return NextResponse.json({ success: false, error: "Invalid Action" }, { status: 400 });
+
+    } catch (error: any) {
+        console.error('[API ERROR]', error);
+
+        return NextResponse.json(
+            {
+                success: false,
+                error: {
+                    message: error?.message || 'Internal Server Error',
+                    code: 'INTERNAL_ERROR'
+                }
+            },
+            { status: 500 }
+        );
+    }
+}

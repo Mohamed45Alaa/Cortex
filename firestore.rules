@@ -1,106 +1,62 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // --- HELPER FUNCTIONS ---
-
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    // ADMIN VERIFICATION (ROBUST)
-    // Checks for 'ADMIN', 'Admin', or 'admin' to handle casing inconsistencies in raw data.
+    
+    // FUNCTION: Check if user is Admin
     function isAdmin() {
+      // NOTE: We trust the 'role' field in the user's main profile.
+      // A more robust system would use Custom Claims, but for this architecture,
+      // we check the 'profile/main' document of the requestor.
+      // CAUTION: This requires the profile to be readable by the user themselves!
       let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)/profile/main);
-      let role = profile.data.role;
-      return isAuthenticated() && (role == 'ADMIN' || role == 'Admin' || role == 'admin');
+      return profile.data.role == 'ADMIN';
     }
 
-    // --- COLLECTION GROUP QUERIES ---
+    // FUNCTION: Check ownership
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
 
-    // Enables Admin Dashboard to list all students
+    // --- COLLECTION GROUP QUERIES (Admin Only) ---
+    // Admins need to query ALL 'profile' and 'sessions' docs across the system.
     match /{path=**}/profile/{docId} {
       allow read: if isAdmin();
     }
+    match /{path=**}/sessions/{docId} {
+      allow read: if isAdmin();
+    }
 
-    // --- USER DATA HIERARCHY ---
-
+    // --- USER DATA (Owner or Admin) ---
     match /users/{uid} {
-      
-      // 4) PROFILE (READ-ONLY FOR ADMIN)
+      // Allow user to read/write their own root? (Not used much, but safe)
+      allow read, write: if isOwner(uid) || isAdmin();
+
+      // Profile Subcollection
       match /profile/{docId} {
-        allow read: if isAdmin() || request.auth.uid == uid;
-        allow write: if isAdmin() || request.auth.uid == uid; // Allow Admin to heal/update
+        allow read: if isOwner(uid) || isAdmin();
+        allow write: if isOwner(uid) || isAdmin();
       }
 
-      // 1) PRESENCE
-      match /presence/{docId} {
-        allow read: if isAdmin() || request.auth.uid == uid;
-        allow write: if request.auth.uid == uid;
-      }
-
-      // 2) ACTIVITY
-      match /activity/{docId} {
-        allow read: if isAdmin() || request.auth.uid == uid;
-        allow write: if request.auth.uid == uid;
-      }
-
-      // 3) SESSIONS (CRITICAL - SERVER AUTHORITY)
-      match /sessions/{sessionId} {
-        allow read: if isAdmin() || request.auth.uid == uid;
-        allow write: if false; // SERVER ONLY
-      }
-
-      // 4) ACTIVE SESSIONS (GLOBAL AUTHORITY)
-      match /activeSessions/{sessionId} {
-        allow read: if isAdmin() || (request.auth.uid == resource.data.uid);
-        allow write: if false; // SERVER ONLY
-      }
-
-      // KEEPING THIS AS IT IS ACTIVELY USED BY CODE
-      match /study/{docId} {
-        allow read: if isAdmin() || request.auth.uid == uid;
-        allow write: if request.auth.uid == uid;
-      }
-
+      // Subject/Lecture/Session Hierarchy
       match /subjects/{subjectId} {
-        allow read, write: if request.auth.uid == uid;
-        allow read: if isAdmin();
+        allow read, write: if isOwner(uid) || isAdmin();
         
-         match /{nested=**} {
-            allow read, write: if request.auth.uid == uid;
-            allow read: if isAdmin();
+        match /lectures/{lectureId} {
+          allow read, write: if isOwner(uid) || isAdmin();
+
+          match /sessions/{sessionId} {
+            allow read, write: if isOwner(uid) || isAdmin();
+          }
         }
       }
 
+      // State Snapshot & Cognitive Index
       match /stateSnapshot/{docId} {
-        allow read, write: if request.auth.uid == uid;
-        allow read: if isAdmin();
+        allow read, write: if isOwner(uid) || isAdmin();
       }
-
       match /cognitiveIndex/{docId} {
-        allow read, write: if request.auth.uid == uid;
-        allow read: if isAdmin();
+        allow read, write: if isOwner(uid) || isAdmin();
       }
-    }
-
-    // LIST PRESENCE (For Admin Dashboard "Online Now")
-    match /{path=**}/presence/{docId} {
-      allow read: if isAdmin();
-    }
-
-    // LIST ACTIVITY (For Admin Idle/Background detection)
-    match /{path=**}/activity/{docId} {
-      allow read: if isAdmin();
-    }
-
-    // LIST STUDY STATE (For Admin Dashboard)
-    match /{path=**}/study/{docId} {
-      allow read: if isAdmin();
     }
   }
 }

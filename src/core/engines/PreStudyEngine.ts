@@ -70,8 +70,8 @@ export const PreStudyEngine = {
             expectedDuration: CognitiveEngine.calculateExpectedStudyTime(lecture.duration, lecture.relativeDifficulty),
             actualDuration: 0,
             cognitiveCost: 0,
-            performanceIndex: 0,
-            focusPerformance: 0,
+            performanceGrade: 'C',
+            focusPerformance: 100,
 
             preUnderstanding,
             // focusWindowAttempted: 25, // Removed as it is not in StudySession type

@@ -6,7 +6,8 @@ import {
     deleteDoc,
     doc,
     writeBatch,
-    updateDoc
+    updateDoc,
+    setDoc
 } from 'firebase/firestore';
 import { ref, set, update } from 'firebase/database';
 import { getFirestoreInstance, getDatabaseInstance, getAuthInstance } from './firebase'; // Singleton Import
@@ -158,7 +159,65 @@ export const AdminService = {
             console.error("FORCE END FAILED", e);
             return { success: false, error: e.message };
         }
+    },
+
+    // 4. UPDATE STUDENT PROFILE (DUAL WRITE)
+    updateStudentProfile: async (uid: string, updates: Partial<UserProfile>): Promise<{ success: boolean; error?: string }> => {
+        try {
+            console.warn(`[AdminService] UPDATING STUDENT PROFILE: ${uid}`, updates);
+            const db = getFirestoreInstance();
+            const rtdb = getDatabaseInstance();
+
+            if (!db || !rtdb) return { success: false, error: "Database Connection Failed" };
+
+            // 1. PREPARE FIRESTORE UPDATE
+            const userRef = doc(db, 'users', uid, 'profile', 'main');
+
+            // HYBRID PATTERN: Flat fields + Identity Object
+            const firestoreUpdates: any = {
+                ...updates,
+                updatedAt: new Date().toISOString()
+            };
+
+            // Enforce Strict Identity Schema if identity fields are touched
+            if (updates.fullName || updates.phone) {
+                // We need to merge with existing data ideally, but for now we set what we act on.
+                // NOTE: 'set' with merge:true is safer than update if doc might be missing, but 'update' is standard here.
+                // However, deep merge of 'identity' requires care.
+                // We will construct a dot-notation update for identity to avoid overwriting email if not passed.
+                if (updates.fullName) firestoreUpdates['identity.fullName'] = updates.fullName;
+                if (updates.phone) firestoreUpdates['identity.phone'] = updates.phone;
+            }
+
+            // 2. PREPARE RTDB UPDATE
+            // Path: users/{uid}/profile
+            // We only mirror display fields
+            const rtdbRef = ref(rtdb, `users/${uid}/profile`);
+            const rtdbUpdates: any = {};
+            if (updates.name) rtdbUpdates.name = updates.name; // Display name
+            if (updates.fullName) rtdbUpdates.fullName = updates.fullName;
+            if (updates.phone) rtdbUpdates.phone = updates.phone;
+            if (updates.university) rtdbUpdates.university = updates.university;
+            if (updates.faculty) rtdbUpdates.faculty = updates.faculty;
+            if (updates.academicYear) rtdbUpdates.academicYear = updates.academicYear;
+
+            // 3. EXECUTE PARALLEL WRITES
+            const fsPromise = setDoc(userRef, firestoreUpdates, { merge: true });
+            const rtdbPromise = activeRTDBWrite(rtdbUpdates, rtdbRef);
+
+            await Promise.all([fsPromise, rtdbPromise]);
+
+            return { success: true };
+
+        } catch (e: any) {
+            console.error("[AdminService] Profile Update Failed", e);
+            return { success: false, error: e.message || "Update Failed" };
+        }
     }
 };
 
-// (Helper moved to top)
+// Helper for RTDB conditional write
+const activeRTDBWrite = async (data: any, ref: any) => {
+    if (Object.keys(data).length === 0) return;
+    return update(ref, data);
+};

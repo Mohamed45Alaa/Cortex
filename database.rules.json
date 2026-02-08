@@ -1,11 +1,13 @@
 {
     "rules": {
         "status": {
-            ".read": "auth.token.role === 'ADMIN'",
+            ".read": "auth.token.role === 'admin'",
             "$uid": {
-                ".read": "$uid === auth.uid || auth.token.role === 'ADMIN'",
-                ".write": false
+                ".read": "$uid === auth.uid || auth.token.role === 'admin'",
+                ".write": "$uid === auth.uid"
             }
-        }
+        },
+        ".read": "auth != null",
+        ".write": "auth != null && auth.token.role === 'admin'"
     }
 }

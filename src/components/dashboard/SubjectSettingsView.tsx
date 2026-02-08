@@ -12,7 +12,7 @@ interface SubjectSettingsProps {
 
 export function SubjectSettingsView({ subject, onSave, onCancel, lang }: SubjectSettingsProps) {
     const t = translations[lang];
-    const isRtl = lang === 'ar';
+    // const isRtl = lang === 'ar'; // REMOVED Strict LTR Rule
 
     const [config, setConfig] = useState<SubjectConfig>(subject.config || {
         lectureTreatment: 'Standard',
@@ -27,7 +27,7 @@ export function SubjectSettingsView({ subject, onSave, onCancel, lang }: Subject
     };
 
     return (
-        <div style={{ padding: '2rem', color: '#F8FAFC', maxWidth: '800px', margin: '0 auto', direction: isRtl ? 'rtl' : 'ltr' }}>
+        <div style={{ padding: '2rem', color: '#F8FAFC', maxWidth: '800px', margin: '0 auto' }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
                 <div>

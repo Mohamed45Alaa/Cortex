@@ -9,6 +9,8 @@
     width: 100%;
     padding: 2rem;
     background: radial-gradient(circle at center, rgba(16, 185, 129, 0.05) 0%, transparent 70%);
+    overflow-y: auto;
+    /* Ensure scrollability if content grows */
 }
 
 .timerDisplay {

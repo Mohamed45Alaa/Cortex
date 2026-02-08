@@ -60,6 +60,12 @@ body {
     line-height: 1.5;
     overflow: hidden;
     /* App-like feel */
+    direction: ltr !important;
+    text-align: left !important;
+}
+
+html {
+    direction: ltr !important;
 }
 
 /* PREMIUM SCROLLBAR */
