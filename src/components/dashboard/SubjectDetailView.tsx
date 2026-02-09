@@ -21,12 +21,14 @@ interface SubjectDetailViewProps {
     subjectId: string;
     onBack: () => void;
     onQuestionFlowStart: (flowType: 'LECTURE_INTENT' | 'SESSION_START', contextId?: string, predictedDuration?: number) => void;
+    highlightLectureId?: string; // NEW: Prop for highlighting
 }
 
 export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
     subjectId,
     onBack,
-    onQuestionFlowStart
+    onQuestionFlowStart,
+    highlightLectureId
 }) => {
     const subject = useSubject(subjectId);
     const lectures = useSubjectLectures(subjectId);
@@ -106,8 +108,9 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
                 sessions={subjectSessions}
                 onStartSession={handleStartSession}
                 lang={'en'} // Should be prop, but for now hardcoded or passed from parent? passed props don't have it.
-            // Actually SubjectDetailView doesn't receive lang. I should use default or get from somewhere.
-            // Assuming 'en' for now or context.
+                // Actually SubjectDetailView doesn't receive lang. I should use default or get from somewhere.
+                // Assuming 'en' for now or context.
+                highlightLectureId={highlightLectureId}
             />
         </div>
     );

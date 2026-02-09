@@ -162,6 +162,38 @@ export const translations = {
         mode_warning_easy_lecture: "This lecture is easy, Importance mode is NOT suitable for it and will waste a lot of time with no results.",
         mode_warning_btn_cancel: "I won't use it",
         mode_warning_btn_proceed: "I understand but will use it",
+
+        // Study Mode Selector
+        platform_recommendation: "Platform Recommendation",
+        inappropriate_mode: "Inappropriate",
+
+        // Lecture Details Modal
+        lecture_details_title: "Lecture Details",
+        lecture_info_section: "Lecture Information",
+        lecture_title_label: "Title:",
+        lecture_duration_label: "Duration:",
+        lecture_difficulty_label: "Difficulty:",
+        lecture_type_label: "Type:",
+        lecture_study_mode_label: "Study Mode:",
+        lecture_expected_time_label: "Expected Time:",
+        minutes_unit: "minutes",
+        sessions_history_title: "Sessions History",
+        sessions_count: "session",
+        sessions_count_plural: "sessions",
+        no_sessions_yet: "No sessions completed for this lecture yet",
+        lecture_type_theory: "Theory",
+        lecture_type_practical: "Practical",
+        lecture_type_revision: "Revision",
+        session_number: "Session",
+        completed_on: "Completed on",
+        actual_time: "Actual Time:",
+        performance: "Performance:",
+        cognitive_load_label: "Cognitive Load:",
+
+        // Understanding Slider Labels
+        understanding_low: "Low",
+        understanding_high: "High",
+        did_not_attend: "Did not attend\nlecture",
     },
     ar: {
         orientation: "نظم حملك الدراسي، قراراً تلو الآخر.",
@@ -325,5 +357,37 @@ export const translations = {
         mode_warning_easy_lecture: "المحاضرة سهلة، وضع الأهمية غير مناسب للمحاضرة دي وسيضيع الكثير من الوقت بلا نتيجة.",
         mode_warning_btn_cancel: "لن استخدمه",
         mode_warning_btn_proceed: "أفهم ذلك لكن سأستخدمه",
+
+        // Study Mode Selector
+        platform_recommendation: "توصية المنصة",
+        inappropriate_mode: "غير مناسب",
+
+        // Lecture Details Modal
+        lecture_details_title: "تفاصيل المحاضرة",
+        lecture_info_section: "معلومات المحاضرة",
+        lecture_title_label: "العنوان:",
+        lecture_duration_label: "المدة:",
+        lecture_difficulty_label: "الصعوبة:",
+        lecture_type_label: "النوع:",
+        lecture_study_mode_label: "نظام المذاكرة:",
+        lecture_expected_time_label: "الوقت المتوقع:",
+        minutes_unit: "دقيقة",
+        sessions_history_title: "سجل الجلسات",
+        sessions_count: "جلسة",
+        sessions_count_plural: "جلسات",
+        no_sessions_yet: "لم يتم إكمال أي جلسة لهذه المحاضرة بعد",
+        lecture_type_theory: "نظري",
+        lecture_type_practical: "عملي",
+        lecture_type_revision: "مراجعة",
+        session_number: "الجلسة",
+        completed_on: "تمت في",
+        actual_time: "الوقت الفعلي:",
+        performance: "الأداء:",
+        cognitive_load_label: "الحمل المعرفي:",
+
+        // Understanding Slider Labels
+        understanding_low: "منخفض",
+        understanding_high: "عالي",
+        did_not_attend: "محضرتش\nالمحاضرة",
     }
 };

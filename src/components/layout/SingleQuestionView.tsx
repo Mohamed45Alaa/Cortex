@@ -106,21 +106,21 @@ export function SingleQuestionView({
                 {inputType === 'slider' && (
                     <div className={styles.sliderContainer}>
                         <div className={styles.sliderValueDisplay}>
-                            {value || 5} / 10
+                            {value === 0 ? t.did_not_attend : `${value || 5} / 10`}
                         </div>
                         <input
                             type="range"
-                            min="1"
+                            min="0"
                             max="10"
                             step="1"
-                            value={value || 5}
+                            value={value !== undefined ? value : 5}
                             onChange={(e) => onChange && onChange(Number(e.target.value))}
                             onKeyDown={handleKeyDown}
                             className={styles.slider}
                             autoFocus
                         />
                         <div className={styles.sliderScale}>
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                                 <span
                                     key={num}
                                     className={value === num ? styles.scaleNumberActive : styles.scaleNumber}
@@ -131,8 +131,33 @@ export function SingleQuestionView({
                             ))}
                         </div>
                         <div className={styles.sliderLabels}>
-                            <span>{t.low_label}</span>
-                            <span>{t.high_label}</span>
+                            <span>{t.understanding_low}</span>
+                            <span>{t.understanding_high}</span>
+                        </div>
+                        {/* Special label for 0 (did not attend) - centered under 0 */}
+                        <div style={{
+                            position: 'relative',
+                            width: '100%',
+                            height: '30px',
+                            marginTop: '-40px'
+                        }}>
+                            <span style={{
+                                fontSize: '0.75rem',
+                                opacity: 0.6,
+                                fontStyle: 'italic',
+                                position: 'absolute',
+                                left: '16px',
+                                transform: 'translateX(-50%)',
+                                textAlign: 'center',
+                                lineHeight: '1.3'
+                            }}>
+                                {t.did_not_attend.split('\n').map((line, i) => (
+                                    <React.Fragment key={i}>
+                                        {i > 0 && <br />}
+                                        {line}
+                                    </React.Fragment>
+                                ))}
+                            </span>
                         </div>
                     </div>
                 )}

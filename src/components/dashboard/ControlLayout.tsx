@@ -16,7 +16,8 @@ import {
     ChevronsRight,
     ChevronDown, // New
     Languages,    // New
-    Hammer       // Used for Tools
+    Hammer,       // Used for Tools
+    Lock          // NEW: For Focus Mode
 } from 'lucide-react';
 import { useSystemStatus, useMediaQuery } from '@/core/hooks';
 import type { FlowState } from '../../core/engines/FlowEngine';
@@ -47,6 +48,9 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
     // REMOVED local theme state, now controlled props
     const isMobile = useMediaQuery('(max-width: 768px)');
 
+    // [LOCK-IN LOGIC]
+    const isLocked = currentView === 'STUDY_EXECUTION';
+
     // User Menu Dropdown State
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
@@ -75,8 +79,8 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
 
     // Dynamic Classes
     const sidebarClass = isMobile
-        ? sidebarLocal ? styles.sidebarOpen : styles.sidebarClosed
-        : sidebarLocal ? styles.sidebarOpen : styles.sidebarClosed; // Same naming, CSS handles diffs
+        ? (sidebarLocal && !isLocked) ? styles.sidebarOpen : styles.sidebarClosed
+        : sidebarLocal ? styles.sidebarOpen : styles.sidebarClosed; // Always allow sidebar visual (if not mobile locked)
 
     const mainContentClass = isMobile
         ? styles.mainContent // No margin on mobile
@@ -229,8 +233,8 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                             </button>
                         </div>
 
-                        {/* MOBILE HAMBURGER */}
-                        {isMobile && (
+                        {/* MOBILE HAMBURGER (Hidden if Locked) */}
+                        {isMobile && !isLocked && (
                             <button className={styles.mobileMenuBtn} onClick={toggleSidebar}>
                                 {sidebarLocal ? <X size={24} /> : <Menu size={24} />}
                             </button>
@@ -253,8 +257,8 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
             {/* CONTROL SIDEBAR (Right Side) */}
             <aside className={`${styles.sidebar} ${sidebarClass}`}>
 
-                {/* DESKTOP TOGGLE BUTTON */}
-                {!isMobile && (
+                {/* DESKTOP TOGGLE BUTTON (Hidden if Locked) */}
+                {!isMobile && !isLocked && (
                     <button className={styles.sidebarToggle} onClick={toggleSidebar}>
                         {sidebarLocal ? <ChevronsRight size={20} /> : <ChevronsLeft size={20} />}
                     </button>
@@ -271,53 +275,70 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                 </div>
 
                 <nav className={styles.navigation}>
-                    <div className={styles.navGroup}>
-                        <NavMethod
-                            icon={<LayoutDashboard size={20} />}
-                            label={t.dashboard}
-                            active={currentView === 'DASHBOARD_HOME'}
-                            onClick={() => { onNavigate('DASHBOARD_HOME'); if (isMobile) setSidebarLocal(false); }}
-                        />
-                        <NavMethod
-                            icon={<Hammer size={20} />}
-                            label={t.MY_TOOLS}
-                            active={currentView === 'DASHBOARD_TOOLS'}
-                            onClick={() => { onNavigate('DASHBOARD_TOOLS'); if (isMobile) setSidebarLocal(false); }}
-                        />
-                        <NavMethod
-                            icon={<BookOpen size={20} />}
-                            label={t.sessions}
-                            active={currentView === 'DASHBOARD_HISTORY'}
-                            onClick={() => { onNavigate('DASHBOARD_HISTORY'); if (isMobile) setSidebarLocal(false); }}
-                        />
+                    {isLocked ? (
+                        /* FOCUS MODE NAVIGATION */
+                        <div className={styles.navGroup}>
+                            <div className={`${styles.navItem} ${styles.active}`} style={{ cursor: 'default', opacity: 1 }}>
+                                <span className={styles.navIcon}><Lock size={20} className="text-amber-400 animate-pulse" /></span>
+                                <span className={styles.navLabel} style={{ color: '#fbbf24' }}>
+                                    {lang === 'en' ? 'Focus Mode' : 'وضع التركيز'}
+                                </span>
+                                <div className={styles.activeIndicator} style={{ background: '#fbbf24' }} />
+                            </div>
+                            <div className="px-6 py-4 text-xs text-slate-500 leading-relaxed">
+                                {lang === 'en'
+                                    ? "Navigation is disabled during active sessions to ensure deep focus."
+                                    : "تم تعطيل التنقل أثناء الجلسة لضمان التركيز العميق."}
+                            </div>
+                        </div>
+                    ) : (
+                        /* STANDARD NAVIGATION */
+                        <div className={styles.navGroup}>
+                            <NavMethod
+                                icon={<LayoutDashboard size={20} />}
+                                label={t.dashboard}
+                                active={currentView === 'DASHBOARD_HOME'}
+                                onClick={() => { onNavigate('DASHBOARD_HOME'); if (isMobile) setSidebarLocal(false); }}
+                            />
+                            <NavMethod
+                                icon={<Hammer size={20} />}
+                                label={t.MY_TOOLS}
+                                active={currentView === 'DASHBOARD_TOOLS'}
+                                onClick={() => { onNavigate('DASHBOARD_TOOLS'); if (isMobile) setSidebarLocal(false); }}
+                            />
+                            <NavMethod
+                                icon={<BookOpen size={20} />}
+                                label={t.sessions}
+                                active={currentView === 'DASHBOARD_HISTORY'}
+                                onClick={() => { onNavigate('DASHBOARD_HISTORY'); if (isMobile) setSidebarLocal(false); }}
+                            />
+                            <NavMethod
+                                icon={<Settings size={20} />}
+                                label={t.settings}
+                                active={currentView === 'DASHBOARD_CONFIG'}
+                                onClick={() => { onNavigate('DASHBOARD_CONFIG'); if (isMobile) setSidebarLocal(false); }}
+                            />
+                            <NavMethod
+                                /* Phase 2: Identity */
+                                icon={<User size={20} />}
+                                label={lang === 'en' ? 'Identity' : 'الهوية'}
+                                active={currentView === 'DASHBOARD_ACCOUNT'}
+                                onClick={() => { onNavigate('DASHBOARD_ACCOUNT'); if (isMobile) setSidebarLocal(false); }}
+                            />
 
-
-                        <NavMethod
-                            icon={<Settings size={20} />}
-                            label={t.settings}
-                            active={currentView === 'DASHBOARD_CONFIG'}
-                            onClick={() => { onNavigate('DASHBOARD_CONFIG'); if (isMobile) setSidebarLocal(false); }}
-                        />
-                        <NavMethod
-                            /* Phase 2: Identity */
-                            icon={<User size={20} />}
-                            label={lang === 'en' ? 'Identity' : 'الهوية'}
-                            active={currentView === 'DASHBOARD_ACCOUNT'}
-                            onClick={() => { onNavigate('DASHBOARD_ACCOUNT'); if (isMobile) setSidebarLocal(false); }}
-                        />
-
-                        {/* Mobile Only: Extra Actions in Sidebar */}
-                        {isMobile && !isGuest && (
-                            <button
-                                className={`${styles.navItem}`}
-                                onClick={logout}
-                                style={{ marginTop: 'auto', color: '#EF4444' }}
-                            >
-                                <span className={styles.navIcon}><LogOut size={20} /></span>
-                                <span className={styles.navLabel}>Sign Out</span>
-                            </button>
-                        )}
-                    </div>
+                            {/* Mobile Only: Extra Actions in Sidebar */}
+                            {isMobile && !isGuest && (
+                                <button
+                                    className={`${styles.navItem}`}
+                                    onClick={logout}
+                                    style={{ marginTop: 'auto', color: '#EF4444' }}
+                                >
+                                    <span className={styles.navIcon}><LogOut size={20} /></span>
+                                    <span className={styles.navLabel}>Sign Out</span>
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </nav>
             </aside>
             {/* AUTH MODAL OVERLAY */}

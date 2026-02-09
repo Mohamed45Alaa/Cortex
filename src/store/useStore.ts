@@ -146,10 +146,22 @@ interface SystemState extends AdminSlice {
         isMainTimerVisible: boolean;
         activeToolId: string | null;
         isMediaPlaying: boolean; // Tracks if internal media is playing
+        highlightedLectureId: string | null; // Persistent Highlighting for incomplete lectures
+        playerState: {
+            fileUrl: string | null;
+            youtubeId: string | null;
+            currentTime: number;
+            duration: number;
+            volume: number;
+            isMuted: boolean;
+            sourceType: 'local' | 'youtube';
+        };
     };
     setMainTimerVisibility: (isVisible: boolean) => void;
     setActiveTool: (toolId: string | null) => void;
     setMediaPlaying: (isPlaying: boolean) => void;
+    setHighlightLectureId: (id: string | null) => void;
+    setPlayerState: (state: Partial<SystemState['uiState']['playerState']>) => void;
 
     // Segment Logging
     logSegment: (type: SegmentType) => void;
@@ -222,7 +234,17 @@ export const useStore = create<SystemState>()(
             uiState: {
                 isMainTimerVisible: true,
                 activeToolId: null,
-                isMediaPlaying: false
+                isMediaPlaying: false,
+                highlightedLectureId: null,
+                playerState: {
+                    fileUrl: null,
+                    youtubeId: null,
+                    currentTime: 0,
+                    duration: 0,
+                    volume: 1,
+                    isMuted: false,
+                    sourceType: 'local'
+                }
             },
 
             setMainTimerVisibility: (isVisible) => set((state) => ({
@@ -235,6 +257,17 @@ export const useStore = create<SystemState>()(
 
             setMediaPlaying: (isPlaying) => set((state) => ({
                 uiState: { ...state.uiState, isMediaPlaying: isPlaying }
+            })),
+
+            setHighlightLectureId: (id) => set((state) => ({
+                uiState: { ...state.uiState, highlightedLectureId: id }
+            })),
+
+            setPlayerState: (updates) => set((state) => ({
+                uiState: {
+                    ...state.uiState,
+                    playerState: { ...state.uiState.playerState, ...updates }
+                }
             })),
 
             logSegment: (type: SegmentType) => set((state) => {

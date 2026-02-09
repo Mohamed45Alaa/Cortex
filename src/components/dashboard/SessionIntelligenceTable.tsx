@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Lecture, StudySession } from '@/core/types';
 import styles from './SessionIntelligenceTable.module.css';
+import fireStyles from './FireAnimation.module.css';
 import {
     Clock,
     Flame,
@@ -13,7 +14,8 @@ import {
     Minus,
     CornerDownRight,
     Square,
-    PauseCircle
+    PauseCircle,
+    RotateCcw
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { translations, Language } from '@/core/i18n/translations';
@@ -26,6 +28,7 @@ interface SessionIntelligenceTableProps {
     sessions: StudySession[];
     onStartSession: (lectureId: string) => void;
     lang: Language;
+    highlightLectureId?: string; // NEW: Prop for highlighting
 }
 
 export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> = ({
@@ -33,16 +36,28 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
     lectures,
     sessions,
     onStartSession,
-    lang
+    lang: language,
+    highlightLectureId // Legacy prop (ignored in favor of store)
 }) => {
-    const { activeSession, deleteLecture } = useStore();
+    const { activeSession, deleteLecture, uiState } = useStore();
+
+    // Auto-scroll effect (Use Store ID)
+    React.useEffect(() => {
+        const targetId = uiState.highlightedLectureId;
+        if (targetId) {
+            const element = document.getElementById(`lecture-row-${targetId}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }, [uiState.highlightedLectureId, lectures]); // Run when lectures load or ID changes
 
     // Modal state
     const [selectedLectureId, setSelectedLectureId] = useState<string | null>(null);
     const selectedLecture = lectures.find(l => l.id === selectedLectureId) || null;
 
     // Helper for Translation
-    const t = translations[lang] || translations.en;
+    const t = translations[language] || translations.en;
 
     // --- 1. METRICS COMPUTE (Global Subject Level) ---
     const metrics = useMemo(() => {
@@ -237,8 +252,17 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
                     if (row.statusKey === 'COMPLETED') statusClass = styles.statusCompleted; // Green
                     if (row.statusKey === 'INTERRUPTED') statusClass = styles.statusInterrupted; // Yellow
 
+                    // Fire Logic: Shown if in Store AND NOT Completed
+                    // The user wants it to stick until done.
+                    const isHighlighted = (row.id === uiState.highlightedLectureId) && row.statusKey !== 'COMPLETED';
+                    const rowClass = `${styles.tableRow} ${isParent ? styles.parentRow : styles.childRow} ${isHighlighted ? fireStyles.fireRow : ''}`;
+
                     return (
-                        <div key={`${row.id}_${idx}`} className={`${styles.tableRow} ${isParent ? styles.parentRow : styles.childRow}`}>
+                        <div
+                            key={`${row.id}_${idx}`}
+                            id={`lecture-row-${row.id}`}
+                            className={rowClass}
+                        >
 
                             {/* NAME */}
                             <div className={styles.colName}>
@@ -308,18 +332,26 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
                                 {isParent && (
                                     <>
                                         {row.statusKey === 'IN PROGRESS' ? (
-                                            <div title="Starting... (Go to Timer)">
-                                                <PauseCircle size={18} color="#60A5FA" />
+                                            <div
+                                                className={fireStyles.fireButton} // Reusing shiny style for prominence
+                                                onClick={() => onStartSession(row.id)}
+                                                title="Return to Session"
+                                                style={{ background: 'linear-gradient(to right, #3b82f6, #8b5cf6)' }} // Blue/Purple for Return
+                                            >
+                                                <RotateCcw size={18} className={fireStyles.fireButtonIcon} />
+                                                <span>RETURN</span>
                                             </div>
                                         ) : (
                                             <div
-                                                className={styles.actionIcon}
+                                                className={isHighlighted ? fireStyles.fireButton : styles.actionIcon}
                                                 onClick={() => onStartSession(row.id)}
                                                 title={t.sess_start}
                                             >
-                                                <Play size={18} />
+                                                <Play size={isHighlighted ? 20 : 18} className={isHighlighted ? fireStyles.fireButtonIcon : ''} />
+                                                {isHighlighted && <span>START</span>}
                                             </div>
                                         )}
+
 
                                         <div
                                             className={styles.actionIcon}
@@ -347,8 +379,9 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
             <LectureDetailsModal
                 lecture={selectedLecture}
                 sessions={sessions}
-                isOpen={selectedLectureId !== null}
+                isOpen={!!selectedLecture}
                 onClose={() => setSelectedLectureId(null)}
+                language={language}
             />
         </div>
     );

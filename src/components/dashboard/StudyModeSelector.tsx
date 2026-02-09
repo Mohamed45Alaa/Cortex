@@ -1,5 +1,6 @@
 import React from 'react';
 import { LectureStudyMode } from '@/core/types';
+import { translations, Language } from '@/core/i18n/translations';
 import {
     getModeMultiplier,
     getModeLabel,
@@ -15,13 +16,15 @@ interface StudyModeSelectorProps {
     difficulty: number;
     selectedMode?: LectureStudyMode;
     onSelect: (mode: LectureStudyMode) => void;
+    language?: Language;
 }
 
 export const StudyModeSelector: React.FC<StudyModeSelectorProps> = ({
     lectureDuration,
     difficulty,
     selectedMode = 'standard',
-    onSelect
+    onSelect,
+    language = 'ar'
 }) => {
     const recommendation = recommendStudyMode(difficulty);
     const modes: LectureStudyMode[] = ['achievement', 'standard', 'importance'];
@@ -32,7 +35,7 @@ export const StudyModeSelector: React.FC<StudyModeSelectorProps> = ({
             <div className="recommendation-banner mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                 <div className="flex items-center justify-center gap-2 text-blue-400 text-sm font-semibold mb-1">
                     <span>🤖</span>
-                    <span>توصية المنصة</span>
+                    <span>{translations[language].platform_recommendation}</span>
                 </div>
                 <p className="text-slate-300 text-sm text-center">
                     {getModeIcon(recommendation.mode)} {recommendation.reason}
@@ -107,7 +110,7 @@ export const StudyModeSelector: React.FC<StudyModeSelectorProps> = ({
                             {isInappropriate && (
                                 <div className="absolute top-3 left-3 px-3 py-1 bg-red-500/90 rounded-full flex items-center gap-1 shadow-lg">
                                     <span className="text-xs">⚠️</span>
-                                    <span className="text-white text-xs font-bold">غير مناسب</span>
+                                    <span className="text-white text-xs font-bold">{translations[language].inappropriate_mode}</span>
                                 </div>
                             )}
                         </button>

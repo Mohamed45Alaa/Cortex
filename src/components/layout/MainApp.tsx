@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation'; // NEW
 import { FlowEngine, FlowContext } from '@/core/engines/FlowEngine';
 import { SingleQuestionView } from '@/components/layout/SingleQuestionView';
 import { ControlLayout } from '@/components/dashboard/ControlLayout';
@@ -49,7 +50,7 @@ export function MainApp() {
     const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
     // Zustand Store
-    const { subjects, lectures, addSubject, registerSession, setProfile, profile, sessions, dailyLoad, addLecture, syncAuth } = useStore();
+    const { subjects, lectures, addSubject, registerSession, setProfile, profile, sessions, dailyLoad, addLecture, syncAuth, setHighlightLectureId } = useStore();
 
     // Theme Effect
     useEffect(() => {
@@ -80,12 +81,30 @@ export function MainApp() {
         // This runs on refresh, new tab, any mount
         if (activeSession && activeSession.isActive) {
             console.log("[MainApp] 🔒 HARD LOCK: Active session detected, forcing STUDY_EXECUTION");
+            // URL Persistence
+            if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                if (!url.searchParams.has('mode')) {
+                    url.searchParams.set('mode', 'session');
+                    window.history.replaceState({}, '', url.toString());
+                }
+            }
+
             if (context.currentState !== 'STUDY_EXECUTION') {
                 setContext(prev => ({
                     ...prev,
                     currentState: 'STUDY_EXECUTION',
                     selectedSubjectId: activeSession.lectureId
                 }));
+            }
+        } else {
+            // Cleanup URL if no session
+            if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                if (url.searchParams.has('mode')) {
+                    url.searchParams.delete('mode');
+                    window.history.replaceState({}, '', url.toString());
+                }
             }
         }
         // REMOVED: Premature dashboard redirect
@@ -190,6 +209,10 @@ export function MainApp() {
                     selectedMode  // NEW: Pass mode
                 );
                 addLecture(newLecture);
+
+                // Store new lecture ID for highlighting (Persisted)
+                setHighlightLectureId(newLecture.id);
+                // nextContext.newlyCreatedLectureId = newLecture.id; // Kept for legacy compatibility if needed
                 nextContext.feedbackMessage = t('cycle_complete', language);
             }
 
@@ -230,6 +253,10 @@ export function MainApp() {
             }
 
             const nextState = FlowEngine.nextState(context.currentState, input);
+
+            // If we are going to DASHBOARD_SUBJECT, ensure we have the ID for highlighting
+            // The newlyCreatedLectureId is already set in the context during creation
+
             setContext({ ...nextContext, currentState: nextState });
 
         } catch (e) {
@@ -450,6 +477,7 @@ export function MainApp() {
                                 }
                             }}
                             onBack={() => setContext(prev => ({ ...prev, currentState: 'SUBJECT_LIST' }))}
+                            highlightLectureId={context.newlyCreatedLectureId}
                         />
                     </ControlLayout>
                 );
@@ -577,6 +605,7 @@ export function MainApp() {
                                 lectureDuration={context.tempRegistration!.duration}
                                 difficulty={11 - context.tempRegistration!.understanding}  // Convert understanding to difficulty
                                 selectedMode={(inputValue as LectureStudyMode) || 'standard'}
+                                language={language}
                                 onSelect={(mode) => {
                                     setInputValue(mode);
                                 }}

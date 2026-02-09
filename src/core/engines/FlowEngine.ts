@@ -34,6 +34,7 @@ export interface FlowContext {
     currentState: FlowState;
     selectedSubjectId?: string;
     activeLectureId?: string; // Explicitly track lecture being studied
+    newlyCreatedLectureId?: string; // NEW: Track newly created lecture for highlighting
     actionType?: 'STUDY' | 'REGISTER';
     tempCalibration: {
         familiarity: number;
@@ -111,7 +112,7 @@ export const FlowEngine = {
             case 'REFLECTION_CHECK': if (input === false) return 'REFLECTION_REASON'; return 'SUMMARY';
             case 'REFLECTION_REASON': return 'SUMMARY';
 
-            case 'SUMMARY': return 'SUBJECT_LIST'; // Back to list
+            case 'SUMMARY': return 'DASHBOARD_SUBJECT'; // Redirect to subject detail
 
             default: return 'SUBJECT_LIST';
         }

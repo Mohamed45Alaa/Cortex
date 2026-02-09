@@ -264,7 +264,12 @@ export const SessionTimerView: React.FC<SessionTimerViewProps> = ({
     // Get lecture data for mode info
     const currentLecture = lectures.find(l => l.id === lectureId);
     const studyMode = currentLecture?.studyMode || 'standard';
-    const customExpectedTime = currentLecture?.customExpectedTime || allocatedMinutes;
+
+    // [FIX] Source of Truth for Duration: Active Session > Lecture > Prop
+    // This prevents the progress bar from looking wrong if props are stale
+    const effectiveDuration = activeSession?.expectedDuration ||
+        currentLecture?.customExpectedTime ||
+        allocatedMinutes;
 
     if (finalSession) {
         if (showAnalysis) {
@@ -367,7 +372,7 @@ export const SessionTimerView: React.FC<SessionTimerViewProps> = ({
                     <div
                         className="h-full bg-indigo-500 transition-all duration-1000 ease-linear"
                         style={{
-                            width: `${Math.min(100, (displayTime / (allocatedMinutes * 60 * 1000)) * 100)}%`
+                            width: `${Math.min(100, (displayTime / (effectiveDuration * 60 * 1000)) * 100)}%`
                         }}
                     />
                 </div>
@@ -419,12 +424,12 @@ export const SessionTimerView: React.FC<SessionTimerViewProps> = ({
 
             {/* EXPECTED TIME DISPLAY (Moved Below Controls) */}
             <div className={styles.expectedTime}>
-                {displayTime > allocatedMinutes * 60 * 1000 ? (
+                {displayTime > effectiveDuration * 60 * 1000 ? (
                     <span style={{ color: '#F87171', fontWeight: 600, animation: 'pulse 2s infinite' }}>
                         Expected time finished. Continue studying freely — time is still recorded.
                     </span>
                 ) : (
-                    formatExpectedTime(allocatedMinutes)
+                    formatExpectedTime(effectiveDuration)
                 )}
             </div>
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { Lecture, StudySession } from '@/core/types';
 import { X, Calendar, Clock, TrendingUp, BarChart3 } from 'lucide-react';
 import { getModeLabel, getModeIcon } from '@/lib/studyModeHelpers';
+import { translations, Language } from '@/core/i18n/translations';
 import styles from './LectureDetailsModal.module.css';
 
 interface LectureDetailsModalProps {
@@ -9,13 +10,15 @@ interface LectureDetailsModalProps {
     sessions: StudySession[];
     isOpen: boolean;
     onClose: () => void;
+    language?: Language;
 }
 
 export const LectureDetailsModal: React.FC<LectureDetailsModalProps> = ({
     lecture,
     sessions,
     isOpen,
-    onClose
+    onClose,
+    language = 'ar'
 }) => {
     if (!isOpen || !lecture) return null;
 
@@ -56,7 +59,7 @@ export const LectureDetailsModal: React.FC<LectureDetailsModalProps> = ({
             <div className={styles.modal}>
                 {/* Header */}
                 <div className={styles.header}>
-                    <h2 className={styles.title}>تفاصيل المحاضرة</h2>
+                    <h2 className={styles.title}>{translations[language].lecture_details_title}</h2>
                     <button onClick={onClose} className={styles.closeBtn} aria-label="Close">
                         <X size={20} />
                     </button>
@@ -64,38 +67,38 @@ export const LectureDetailsModal: React.FC<LectureDetailsModalProps> = ({
 
                 {/* Lecture Info Card */}
                 <div className={styles.infoCard}>
-                    <h3 className={styles.sectionTitle}>📚 معلومات المحاضرة</h3>
+                    <h3 className={styles.sectionTitle}>📚 {translations[language].lecture_info_section}</h3>
                     <div className={styles.infoGrid}>
                         <div className={styles.infoItem}>
-                            <span className={styles.infoLabel}>العنوان:</span>
+                            <span className={styles.infoLabel}>{translations[language].lecture_title_label}</span>
                             <span className={styles.infoValue}>{lecture.title}</span>
                         </div>
                         <div className={styles.infoItem}>
-                            <span className={styles.infoLabel}>المدة:</span>
-                            <span className={styles.infoValue}>{lecture.duration} دقيقة</span>
+                            <span className={styles.infoLabel}>{translations[language].lecture_duration_label}</span>
+                            <span className={styles.infoValue}>{lecture.duration} {translations[language].minutes_unit}</span>
                         </div>
                         <div className={styles.infoItem}>
-                            <span className={styles.infoLabel}>الصعوبة:</span>
+                            <span className={styles.infoLabel}>{translations[language].lecture_difficulty_label}</span>
                             <span className={styles.infoValue}>{lecture.relativeDifficulty.toFixed(1)}/10</span>
                         </div>
                         <div className={styles.infoItem}>
-                            <span className={styles.infoLabel}>النوع:</span>
+                            <span className={styles.infoLabel}>{translations[language].lecture_type_label}</span>
                             <span className={styles.infoValue}>
-                                {lecture.type === 'Theory' ? 'نظري' : lecture.type === 'Practical' ? 'عملي' : 'مراجعة'}
+                                {lecture.type === 'Theory' ? translations[language].lecture_type_theory : lecture.type === 'Practical' ? translations[language].lecture_type_practical : translations[language].lecture_type_revision}
                             </span>
                         </div>
                         {lecture.studyMode && (
                             <>
                                 <div className={styles.infoItem}>
-                                    <span className={styles.infoLabel}>نظام المذاكرة:</span>
+                                    <span className={styles.infoLabel}>{translations[language].lecture_study_mode_label}</span>
                                     <span className={styles.infoValue}>
                                         {getModeIcon(lecture.studyMode)} {getModeLabel(lecture.studyMode)}
                                     </span>
                                 </div>
                                 <div className={styles.infoItem}>
-                                    <span className={styles.infoLabel}>الوقت المتوقع:</span>
+                                    <span className={styles.infoLabel}>{translations[language].lecture_expected_time_label}</span>
                                     <span className={styles.infoValue}>
-                                        {lecture.customExpectedTime || lecture.expectedDuration} دقيقة
+                                        {lecture.customExpectedTime || lecture.expectedDuration} {translations[language].minutes_unit}
                                     </span>
                                 </div>
                             </>
@@ -106,12 +109,12 @@ export const LectureDetailsModal: React.FC<LectureDetailsModalProps> = ({
                 {/* Sessions History */}
                 <div className={styles.sessionsSection}>
                     <h3 className={styles.sectionTitle}>
-                        📊 سجل الجلسات ({lectureSessions.length} جلسة)
+                        📊 {translations[language].sessions_history_title} ({lectureSessions.length} {lectureSessions.length === 1 ? translations[language].sessions_count : translations[language].sessions_count_plural})
                     </h3>
 
                     {lectureSessions.length === 0 ? (
                         <div className={styles.emptyState}>
-                            <p>لم يتم إكمال أي جلسة لهذه المحاضرة بعد</p>
+                            <p>{translations[language].no_sessions_yet}</p>
                         </div>
                     ) : (
                         <div className={styles.sessionsTable}>
@@ -136,7 +139,7 @@ export const LectureDetailsModal: React.FC<LectureDetailsModalProps> = ({
                                     <div className={styles.sessionMetrics}>
                                         <div className={styles.metric}>
                                             <Clock size={16} />
-                                            <span>{session.actualDuration} دقيقة</span>
+                                            <span>{session.actualDuration} {translations[language].minutes_unit}</span>
                                         </div>
                                         <div className={styles.metric}>
                                             <TrendingUp size={16} />

@@ -16,7 +16,8 @@ type QualityOption = 'auto' | '1080p' | '720p' | '480p' | '360p' | '240p';
 
 export const PremiumVideoPlayer: React.FC<PremiumVideoPlayerProps> = ({ isOpen, onClose }) => {
     // Store Integration for Segment Tracking
-    const { setActiveTool, setMediaPlaying } = useStore();
+    const { setActiveTool, setMediaPlaying, uiState, setPlayerState } = useStore();
+    const savedState = uiState.playerState;
 
     // Source Management
     const [sourceType, setSourceType] = useState<SourceType>('local');
@@ -24,6 +25,7 @@ export const PremiumVideoPlayer: React.FC<PremiumVideoPlayerProps> = ({ isOpen, 
     const [fileName, setFileName] = useState<string | null>(null);
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [youtubeId, setYoutubeId] = useState<string | null>(null);
+
 
     // Player State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -44,6 +46,7 @@ export const PremiumVideoPlayer: React.FC<PremiumVideoPlayerProps> = ({ isOpen, 
     const containerRef = useRef<HTMLDivElement>(null);
     const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const lastTimeRef = useRef(0); // Track time for restoration
 
     // Web Audio API refs
     const audioCtxRef = useRef<AudioContext | null>(null);
@@ -51,6 +54,33 @@ export const PremiumVideoPlayer: React.FC<PremiumVideoPlayerProps> = ({ isOpen, 
     const gainNodeRef = useRef<GainNode | null>(null);
     const dryGainRef = useRef<GainNode | null>(null);
     const wetGainRef = useRef<GainNode | null>(null);
+
+    // [PERSISTENCE] Restore State on Mount
+    useEffect(() => {
+        if (savedState.sourceType) setSourceType(savedState.sourceType);
+        if (savedState.fileUrl) setFileUrl(savedState.fileUrl);
+        if (savedState.youtubeId) setYoutubeId(savedState.youtubeId);
+        if (savedState.volume !== undefined) setVolume(savedState.volume);
+        if (savedState.isMuted !== undefined) setIsMuted(savedState.isMuted);
+
+        // Restore Time
+        if (savedState.currentTime > 0) {
+            setCurrentTime(savedState.currentTime);
+            lastTimeRef.current = savedState.currentTime;
+        }
+    }, []); // Run once on mount
+
+    // [PERSISTENCE] Sync State Changes (Low Frequency)
+    useEffect(() => {
+        setPlayerState({
+            sourceType,
+            fileUrl,
+            youtubeId,
+            volume,
+            isMuted
+
+        });
+    }, [sourceType, fileUrl, youtubeId, volume, isMuted, setPlayerState]);
 
     // Extract YouTube video ID
     const extractYouTubeId = (url: string): string | null => {
@@ -136,6 +166,8 @@ export const PremiumVideoPlayer: React.FC<PremiumVideoPlayerProps> = ({ isOpen, 
         const id = extractYouTubeId(youtubeUrl);
         if (id) {
             setYoutubeId(id);
+            // Reset audio source tracking when switching to YT
+            sourceNodeRef.current = null;
         }
     };
 
@@ -247,10 +279,33 @@ export const PremiumVideoPlayer: React.FC<PremiumVideoPlayerProps> = ({ isOpen, 
         const video = videoRef.current;
         if (!video) return;
 
-        const handleTimeUpdate = () => setCurrentTime(video.currentTime);
-        const handleDurationChange = () => setDuration(video.duration);
+        // [FIX] Restore time if we have a saved position and video is fresh
+        if (lastTimeRef.current > 0 && Math.abs(video.currentTime - lastTimeRef.current) > 1) {
+            console.log("Restoring playback position:", lastTimeRef.current);
+            video.currentTime = lastTimeRef.current;
+        }
+
+        // [FIX] Reset audio node if video element changed to ensure graph re-init
+        if (sourceNodeRef.current) {
+            // We can't easily check if sourceNode is connected to THIS video, 
+            // but if we are mounting, it's safer to assume we need a new source.
+            sourceNodeRef.current = null;
+        }
+
+        const handleTimeUpdate = () => {
+            setCurrentTime(video.currentTime);
+            if (video.currentTime > 0) lastTimeRef.current = video.currentTime;
+        };
+        const handleDurationChange = () => {
+            setDuration(video.duration);
+            setPlayerState({ duration: video.duration });
+        };
         const handlePlay = () => setIsPlaying(true);
-        const handlePause = () => setIsPlaying(false);
+        const handlePause = () => {
+            setIsPlaying(false);
+            // Save time on pause
+            setPlayerState({ currentTime: video.currentTime });
+        };
         const handleProgress = () => {
             if (video.buffered.length > 0) {
                 setBuffered(video.buffered.end(0) / video.duration * 100);
@@ -264,29 +319,29 @@ export const PremiumVideoPlayer: React.FC<PremiumVideoPlayerProps> = ({ isOpen, 
         video.addEventListener('progress', handleProgress);
 
         return () => {
+            // [PERSISTENCE] Save time on unmount/cleanup
+            if (video && !video.paused) { // If playing when unmounting
+                setPlayerState({ currentTime: video.currentTime });
+            } else if (lastTimeRef.current > 0) {
+                setPlayerState({ currentTime: lastTimeRef.current });
+            }
+
             video.removeEventListener('timeupdate', handleTimeUpdate);
             video.removeEventListener('durationchange', handleDurationChange);
             video.removeEventListener('play', handlePlay);
             video.removeEventListener('pause', handlePause);
             video.removeEventListener('progress', handleProgress);
         };
-    }, [fileUrl]);
+    }, [fileUrl, sourceType, setPlayerState]); // Added sourceType to re-bind when switching tabs
 
     // Sync Player State with Store (Segment Tracking)
+    // [FIX] Removed auto-close logic that was causing the player to close immediately on mount.
+    // The player should remain open to allow file selection.
     useEffect(() => {
-        // Set activeTool when player has content
-        if (fileUrl || youtubeId) {
-            setActiveTool('player');
-        } else {
-            setActiveTool(null);
-        }
-
-        // Cleanup on unmount
         return () => {
-            setActiveTool(null);
             setMediaPlaying(false);
         };
-    }, [fileUrl, youtubeId, setActiveTool, setMediaPlaying]);
+    }, [setMediaPlaying]);
 
     // Sync isPlaying state with store
     useEffect(() => {
