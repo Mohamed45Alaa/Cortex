@@ -22,33 +22,38 @@ interface SubjectDetailViewProps {
     onBack: () => void;
     onQuestionFlowStart: (flowType: 'LECTURE_INTENT' | 'SESSION_START', contextId?: string, predictedDuration?: number) => void;
     highlightLectureId?: string; // NEW: Prop for highlighting
+    lang: Language; // Added Prop
 }
 
 export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
     subjectId,
     onBack,
     onQuestionFlowStart,
-    highlightLectureId
+    highlightLectureId,
+    lang
 }) => {
     const subject = useSubject(subjectId);
     const lectures = useSubjectLectures(subjectId);
+
+    // Translation helper
+    const t = translations[lang];
 
     // --- CONNECT TO STORE FOR SESSIONS ---
     const { sessions, authState, openAuthModal, renameSubject, deleteSubject } = useStore();
     const subjectSessions = sessions.filter(s => s.subjectId === subjectId);
 
     // Guard: Subject missing
-    if (!subject) return <div className={styles.errorState}>Subject Not Found</div>;
+    if (!subject) return <div className={styles.errorState}>{t.subject_not_found}</div>;
 
     const handleRename = () => {
-        const newName = prompt("Rename Subject:", subject.name);
+        const newName = prompt(t.rename_subject, subject.name);
         if (newName && newName.trim() !== "") {
             renameSubject(subject.id, newName.trim());
         }
     };
 
     const handleDelete = () => {
-        if (confirm(`Are you sure you want to delete "${subject.name}"? This cannot be undone.`)) {
+        if (confirm(t.delete_confirm)) {
             deleteSubject(subject.id);
             onBack(); // Return to dashboard
         }
@@ -74,10 +79,10 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
                 <div className={styles.headerInfo}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <h1 className={styles.subjectTitle}>{subject.name}</h1>
-                        <button onClick={handleRename} className={styles.iconBtn} title="Rename Subject">
+                        <button onClick={handleRename} className={styles.iconBtn} title={t.rename_subject}>
                             <Edit size={16} />
                         </button>
-                        <button onClick={handleDelete} className={styles.iconBtn} style={{ color: '#EF4444' }} title="Delete Subject">
+                        <button onClick={handleDelete} className={styles.iconBtn} style={{ color: '#EF4444' }} title={t.delete_subject}>
                             <Trash2 size={16} />
                         </button>
                     </div>
@@ -92,12 +97,12 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
 
             {/* Control Toolbar */}
             <div className={styles.toolbar}>
-                <span className={styles.sectionTitle}>ACADEMIC INPUTS</span>
+                <span className={styles.sectionTitle}>{t.academic_inputs_title}</span>
                 <button
                     className={styles.actionBtn}
                     onClick={() => onQuestionFlowStart('LECTURE_INTENT', subjectId)}
                 >
-                    <PlusCircle size={16} /> Add Lecture
+                    <PlusCircle size={16} /> {t.add_lecture_btn}
                 </button>
             </div>
 
@@ -107,9 +112,7 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
                 lectures={lectures}
                 sessions={subjectSessions}
                 onStartSession={handleStartSession}
-                lang={'en'} // Should be prop, but for now hardcoded or passed from parent? passed props don't have it.
-                // Actually SubjectDetailView doesn't receive lang. I should use default or get from somewhere.
-                // Assuming 'en' for now or context.
+                lang={lang}
                 highlightLectureId={highlightLectureId}
             />
         </div>

@@ -6,6 +6,7 @@ import { SessionSegment, SegmentType } from '@/core/types';
 interface SessionTimelineProps {
     segments: SessionSegment[];
     totalDuration: number; // ms
+    lang?: 'ar' | 'en';
 }
 
 const getColor = (type: SegmentType) => {
@@ -18,17 +19,17 @@ const getColor = (type: SegmentType) => {
     }
 };
 
-const getLabel = (type: SegmentType) => {
+const getLabel = (type: SegmentType, lang: 'ar' | 'en') => {
     switch (type) {
-        case 'ACTIVE': return 'Deep Focus';
-        case 'TOOL': return 'Tool Usage';
-        case 'IDLE': return 'Idle / Passive';
-        case 'DISENGAGED': return 'Context Loss';
-        default: return 'Unknown';
+        case 'ACTIVE': return lang === 'ar' ? 'مذاكرة عميقة' : 'Deep Focus';
+        case 'TOOL': return lang === 'ar' ? 'استخدام الأدوات' : 'Tool Usage';
+        case 'IDLE': return lang === 'ar' ? 'خمول الطور السلبي' : 'Idle / Passive';
+        case 'DISENGAGED': return lang === 'ar' ? 'فقدان تركيزك / تشتت' : 'Context Loss';
+        default: return lang === 'ar' ? 'غير معروف' : 'Unknown';
     }
 };
 
-export const SessionTimeline: React.FC<SessionTimelineProps> = ({ segments, totalDuration }) => {
+export const SessionTimeline: React.FC<SessionTimelineProps> = ({ segments, totalDuration, lang = 'ar' }) => {
     if (!segments || segments.length === 0 || totalDuration === 0) {
         return <div className="w-full h-4 bg-slate-800 rounded-full animate-pulse" />;
     }
@@ -49,7 +50,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({ segments, tota
                             key={idx}
                             style={{ width: `${widthPercent}%`, backgroundColor: getColor(segment.type) }}
                             className="h-full relative transition-all duration-300 hover:brightness-110"
-                            title={`${getLabel(segment.type)}: ${Math.round(duration / 1000)}s`}
+                            title={`${getLabel(segment.type, lang)}: ${Math.round(duration / 1000)}${lang === 'ar' ? 'ث' : 's'}`}
                         >
                             {/* Hover Tooltip (Simple browser native 'title' used above, could enhance) */}
                         </div>
@@ -58,9 +59,9 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({ segments, tota
             </div>
 
             {/* Legend / Metrics Below (Optional, can be separate) */}
-            <div className="flex justify-between items-center mt-2 text-[10px] text-slate-500 px-1 font-mono uppercase tracking-wider">
-                <span>0m</span>
-                <span>{Math.round(totalDuration / 60000)}m Session</span>
+            <div className={`flex justify-between items-center mt-2 text-[10px] text-slate-500 px-1 font-mono uppercase tracking-wider ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+                <span>0{lang === 'ar' ? 'د' : 'm'}</span>
+                <span>{Math.round(totalDuration / 60000)} {lang === 'ar' ? 'د جلسة' : 'm Session'}</span>
             </div>
         </div>
     );

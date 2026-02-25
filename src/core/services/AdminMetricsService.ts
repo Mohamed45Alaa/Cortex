@@ -3,14 +3,37 @@ import { ref, onValue, off } from "firebase/database";
 import { doc, getDoc } from "firebase/firestore";
 import { CacheService } from "./CacheService"; // Fixed
 
-/**
- * AdminMetricsService (HYBRID: RTDB Live + Firestore Lazy Truth)
- * 
- * 1. Listen to RTDB /status for Presence (Source of Truth for ONLINE).
- * 2. If Profile missing in RTDB/Cache -> Lazy Fetch from Firestore /users/{uid}/profile/main.
- * 3. Enforce 90s Heartbeat Timeout (Stale = Offline).
- */
+// ─── REFRESH SPEED CONTROL ────────────────────────────────────────────────────
+// 'realtime' = fire on every RTDB event (default)
+// number     = throttle emits to at most once per N milliseconds
+export type RefreshSpeed = 'realtime' | number;
+
+let _refreshInterval: RefreshSpeed = 'realtime';
+let _lastEmitTime = 0;
+let _pendingEmitTimer: ReturnType<typeof setTimeout> | null = null;
+
+// ─── STALENESS CONTROL ───────────────────────────────────────────────────────
+// How long before a student with a non-offline state is force-marked offline.
+// Defaults to 15s (matches instant/1s heartbeat × 3 missed = 15s).
+// AdminRealtimeController updates this on every speed change.
+let _stalenessMs = 15_000;
+
 export const AdminMetricsService = {
+    setRefreshInterval(speed: RefreshSpeed) {
+        _refreshInterval = speed;
+        _lastEmitTime = 0;
+        if (_pendingEmitTimer) {
+            clearTimeout(_pendingEmitTimer);
+            _pendingEmitTimer = null;
+        }
+    },
+    getRefreshInterval(): RefreshSpeed {
+        return _refreshInterval;
+    },
+    setStalenessMs(ms: number) {
+        _stalenessMs = ms;
+    },
+
     subscribeToDashboard: (callback: (data: {
         students: any[],
         total: number,
@@ -96,8 +119,8 @@ export const AdminMetricsService = {
             pendingSessionFetches.delete(sessionId);
         };
 
-        // EMITTER
-        const emit = () => {
+        // EMITTER (Throttled)
+        const _doEmit = () => {
             const combined: any[] = [];
             let stats = {
                 onlineCount: 0,
@@ -109,7 +132,7 @@ export const AdminMetricsService = {
 
             const NOW = Date.now();
             const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-            const NINETY_SECONDS = 90 * 1000;
+            const NINETY_SECONDS = _stalenessMs; // dynamic — set by AdminRealtimeController
 
             // 1. Identify Population (RTDB Status is the primary signal for existence in the "Live" system)
             // But we also include RTDB Users just in case.
@@ -195,19 +218,19 @@ export const AdminMetricsService = {
                     // --- NO SESSION CASE ---
                     if (rawState === 'online') {
                         // CASE: Online but no session
-                        // USER RULE: GREEN, Label: "Online"
+                        // USER RULE: GREEN, Label: "Online (No Session)"
                         mode = 'browsing';
-                        sortRank = 2;
-                        dotColor = 'green';
-                        statusLabel = 'Online';
+                        sortRank = 2; // Keep rank same
+                        dotColor = 'green'; // Changed back from yellow
+                        statusLabel = 'Online (No Session)';
                         stats.onlineCount++;
                     } else if (rawState === 'background') {
                         // CASE: Background / Idle
-                        // USER RULE: BLUE, Label: "Background"
+                        // USER RULE: ORANGE, Label: "Background (No Session)"
                         mode = 'idle';
-                        sortRank = 4;
-                        dotColor = 'blue';
-                        statusLabel = 'Background';
+                        sortRank = 4; // Keep rank same
+                        dotColor = 'blue'; // Changed back from orange
+                        statusLabel = 'Background (No Session)';
                     } else {
                         // CASE: Offline
                         if (NOW - lastSeen > SEVEN_DAYS_MS) {
@@ -260,8 +283,9 @@ export const AdminMetricsService = {
                         sessionActive: isSessionActive,
                         lastInteractionAt: lastSeen,
                         sessionContext: sessionContext,
-                        // TIME SOURCE: Extract from context (RTDB usually has createdAt or startedAt)
-                        startTime: sessionContext?.createdAt || sessionContext?.startedAt || sessionContext?.startTime || null,
+                        // TIME SOURCE: RTDB activeSession.startedAt is the authoritative source (written by START API)
+                        // Priority: startedAt (from RTDB) > startTime > createdAt (Firestore only, not in RTDB)
+                        startTime: sessionContext?.startedAt || sessionContext?.startTime || sessionContext?.createdAt || null,
                         // UI HELPER: Pre-calculated Badge Props
                         // STRICT RULE: "In Session" or "-" (handled by UI if null)
                         badge: isSessionActive ? {
@@ -287,10 +311,31 @@ export const AdminMetricsService = {
             callback({
                 students: combined, // Sorted List
                 total: combined.length,
-                subscribed: 0,
+                subscribed: combined.filter(s => s.isPremium === true).length,
                 onlineCount: stats.onlineCount,
                 stats
             });
+        };
+
+        // THROTTLED DISPATCHER — respects `_refreshInterval`
+        const emit = () => {
+            if (_refreshInterval === 'realtime') {
+                _doEmit();
+                return;
+            }
+            const now = Date.now();
+            const elapsed = now - _lastEmitTime;
+            if (elapsed >= _refreshInterval) {
+                _lastEmitTime = now;
+                _doEmit();
+            } else if (!_pendingEmitTimer) {
+                // Schedule a deferred emit for when the window opens
+                _pendingEmitTimer = setTimeout(() => {
+                    _pendingEmitTimer = null;
+                    _lastEmitTime = Date.now();
+                    _doEmit();
+                }, _refreshInterval - elapsed);
+            }
         };
 
         // LISTENERS

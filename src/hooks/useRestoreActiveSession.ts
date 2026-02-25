@@ -9,6 +9,7 @@ export const useRestoreActiveSession = () => {
 
     useEffect(() => {
         // Only run if authenticated and NO local session
+        if (!useStore.getState().isHydrated) return; // Hydration check
         if (authState.status !== 'AUTHENTICATED' || !authState.user || activeSession) return;
         if (hasChecked.current) return;
 

@@ -64,21 +64,20 @@
 
 .tableHeader {
     display: grid;
-    /* ItemName, Type, Duration, Diff, Delta, Status, Actions */
-    /* FIXED: Matches tableRow exactly */
-    grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr 1.2fr 180px;
+    /* ItemName, Type, Duration, Diff, Delta, Grade, Cost, Status, Actions */
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1.2fr 160px;
     padding: 16px 24px;
     /* Increased padding */
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.03);
     border-radius: 8px 8px 0 0;
 
-    color: #64748B;
-    /* Muted header */
-    font-size: 0.7rem;
+    color: #E2E8F0;
+    /* Brighter header */
+    font-size: 1.0rem;
     font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-family: 'MadaniArabic-Bold', sans-serif;
+    /* Explicitly bold for Arabic */
     align-items: center;
 }
 
@@ -91,8 +90,8 @@
 
 .tableRow {
     display: grid;
-    /* FIXED: Matches tableHeader exactly */
-    grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr 1.2fr 180px;
+    /* Matches tableHeader exactly (9 columns) */
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1.2fr 160px;
     padding: 20px 24px;
     /* Taller rows for vertical rhythm */
     align-items: center;

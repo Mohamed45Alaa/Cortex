@@ -1,5 +1,5 @@
 // Test Cases for New Cognitive Evaluation System
-import { CognitiveLoadEngine } from './CognitiveLoadEngine';
+import { CognitiveLoadEngine } from './src/core/engines/CognitiveLoadEngine';
 
 console.log('🧪 Running Test Cases for Zone-Based Evaluation System\n');
 

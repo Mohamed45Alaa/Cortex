@@ -15,7 +15,7 @@ import { FloatingTimerPill } from '../session/FloatingTimerPill';
  * Z-Index: 9999 (Above everything, including Tool Overlays)
  */
 export const GlobalSessionTimer: React.FC = () => {
-    const { activeSession, uiState } = useStore();
+    const { activeSession, uiState, pauseActiveSession, resumeActiveSession } = useStore();
     const { isMainTimerVisible, activeToolId } = uiState;
 
     const [displayTime, setDisplayTime] = useState(0);
@@ -51,19 +51,22 @@ export const GlobalSessionTimer: React.FC = () => {
 
     // Scroll Handler (To Main Timer)
     const handleScrollToTimer = () => {
-        // We need to find the main timer element. 
-        // Since we are decoupled, we can use a DOM ID selector.
-        // We'll trust SessionTimerView to put an ID on its container or use 'scrollIntoView' on the top.
-        // Actually, scrolling to top of page usually brings timer into view in this layout.
-
         // Strategy: Try to find the timer container, fallback to top.
-        // NOTE: SessionTimerView needs an ID.
         const timerEl = document.getElementById('main-session-timer');
         if (timerEl) {
             timerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
             // Fallback for isolated layout
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
+    const handleTogglePause = () => {
+        if (!activeSession) return;
+        if (activeSession.pausedAt) {
+            resumeActiveSession();
+        } else {
+            pauseActiveSession();
         }
     };
 
@@ -74,6 +77,7 @@ export const GlobalSessionTimer: React.FC = () => {
             ms={displayTime}
             isPaused={isPaused}
             onClick={handleScrollToTimer}
+            onTogglePause={handleTogglePause}
             className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999]"
         />
     );

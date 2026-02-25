@@ -45,8 +45,14 @@ export const HistoryEngine = {
     getWeeklyHistory: (
         sessions: StudySession[],
         lectures: Lecture[],
-        subjects: Subject[]
+        subjects: Subject[],
+        lang: 'ar' | 'en' = 'en'
     ): WeeklyBlock[] => {
+        const daysMap = {
+            en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+            ar: ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+        };
+        const activeDays = daysMap[lang] || daysMap.en;
         // 1. Flatten all entities into StudyRecords
         const allRecords: StudyRecord[] = [];
 
@@ -68,7 +74,7 @@ export const HistoryEngine = {
                 dateVal = new Date(session.startTime);
             }
 
-            const meta = getDateMeta(dateVal);
+            const meta = getDateMeta(dateVal, activeDays);
 
             // Fetch Parent Item Name if possible
             let itemName = 'Study Session';
@@ -111,7 +117,7 @@ export const HistoryEngine = {
             // Use creation date if available, else fallback to something (or exclude old ones?)
             const dateStr = lecture.createdAt || new Date().toISOString();
             const date = new Date(dateStr);
-            const meta = getDateMeta(date);
+            const meta = getDateMeta(date, activeDays);
 
             // Determine Status
             // Check if any session exists for this lecture
@@ -173,7 +179,7 @@ export const HistoryEngine = {
 
             blocks.push({
                 weekIndex: idx,
-                label: `Week ${idx}`,
+                label: lang === 'ar' ? `الأسبوع ${idx}` : `Week ${idx}`,
                 startDate: formatDate(weekStart),
                 endDate: formatDate(weekEnd),
                 isCurrentWeek: isDateInRange(new Date(), weekStart, weekEnd),
@@ -189,10 +195,10 @@ export const HistoryEngine = {
 // --- HELPERS ---
 
 // Enforce Saturday Start
-function getDateMeta(date: Date) {
+function getDateMeta(date: Date, dayNames: string[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']) {
     return {
         fullDate: date.toISOString().split('T')[0],
-        dayName: DAY_NAMES[date.getDay()],
+        dayName: dayNames[date.getDay()],
         weekIndex: 0, // Placeholder, calculated later
         timestamp: date.getTime()
     };
@@ -244,14 +250,14 @@ function isDateInRange(target: Date, start: Date, end: Date) {
 }
 
 function calculateGrade(cost: number): string {
-    // Cost is 0-10 (Low is Good)
+    // Cost is 0-10 (High is Good)
     const val = cost;
-    if (val <= 2.5) return 'A+';
-    if (val <= 4.0) return 'A';
-    if (val <= 6.0) return 'B+';
-    if (val <= 7.5) return 'B';
-    if (val <= 8.5) return 'C+';
-    if (val <= 9.5) return 'C';
+    if (val >= 9.0) return 'A+';
+    if (val >= 7.5) return 'A';
+    if (val >= 6.0) return 'B+';
+    if (val >= 5.0) return 'B';
+    if (val >= 4.0) return 'C+';
+    if (val >= 3.0) return 'C';
     return 'D';
 }
 

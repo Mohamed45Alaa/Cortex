@@ -160,15 +160,22 @@
 }
 
 .contentViewport {
-    max-width: 1200px;
     width: 100%;
-    margin: 0 auto;
-    padding: 40px;
     flex: 1;
     overflow-y: auto;
     /* ENABLE SCROLLING HERE */
     display: flex;
     flex-direction: column;
+}
+
+.contentWrapper {
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
     padding-bottom: 100px;
     /* Space for scroll indicator/bottom elements */
 }
@@ -436,9 +443,10 @@
         /* Reset padding */
     }
 
-    .contentViewport {
+    .contentWrapper {
         padding: 20px;
         /* Reduced padding */
+        padding-bottom: 80px;
     }
 }
 

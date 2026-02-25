@@ -1,0 +1,267 @@
+{/* [NEW] Offline Transcript Viewer */}
+                            {fileUrl && (
+                                <LiveTranscriptViewer
+                                    segments={segments}
+                                    currentText={currentText}
+                                    isProcessing={isTranscribing}
+                                    loadingModel={sttLoading}
+                                    progress={sttProgress}
+                                    error={sttError}
+                                    currentTime={currentTime}
+                                    activeModel={sttActiveModel}
+                                />
+                            )}
+                        </div>
+
+                                        {/* Audio Controls Panel (Moved Outside Video) */}
+                    <div className="p-4 rounded-xl bg-slate-800/50 border border-white/5 w-full shrink-0">
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            {/* Smart Enhance Toggle */}
+                            <div className="flex items-center space-x-3">
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        checked={isSmartEnhance}
+                                        onChange={(e) => setIsSmartEnhance(e.target.checked)}
+                                        className="sr-only peer"
+                                        id="smart-enhance-toggle"
+                                    />
+                                    {/* Track */}
+                                    <label
+                                        htmlFor="smart-enhance-toggle"
+                                        className={`block w-14 h-8 rounded-full cursor-pointer transition-all duration-300 ease-in-out ${isSmartEnhance
+                                            ? 'bg-violet-500 shadow-[0_0_15px_rgba(139,92,246,0.5)]'
+                                            : 'bg-slate-700 hover:bg-slate-600'
+                                            }`}
+                                    >
+                                        {/* Knob */}
+                                        <span
+                                            className={`absolute left-1 top-1 w-6 h-6 bg-white rounded-full transition-transform duration-300 ease-spring ${isSmartEnhance ? 'translate-x-6' : 'translate-x-0'
+                                                } shadow-md flex items-center justify-center`}
+                                        >
+                                            {isSmartEnhance && (
+                                                <Mic2 size={12} className="text-violet-500 animate-in fade-in zoom-in duration-300" />
+                                            )}
+                                        </span>
+                                    </label>
+                                </div>
+                                <div className="flex flex-col select-none">
+                                    <label
+                                        htmlFor="smart-enhance-toggle"
+                                        className={`text-sm font-semibold cursor-pointer transition-colors ${isSmartEnhance ? 'text-violet-400' : 'text-slate-200'
+                                            }`}
+                                    >
+                                        Smart Enhance
+                                    </label>
+                                    <span className="text-[10px] text-slate-400">
+                                        {isSmartEnhance
+                                            ? enhanceStatus === 'idle' ? 'Starting...'
+                                                : enhanceStatus === 'analyzing' ? 'Analyzing Audio...'
+                                                    : enhanceStatus === 'speech' ? 'Enhancing Speech'
+                                                        : enhanceStatus === 'noise' ? 'Reducing Noise'
+                                                            : 'Clean Signal ✓'
+                                            : 'Off: AI Adaptive Processing'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="hidden md:block w-px h-10 bg-white/10 mx-2"></div>
+
+                            {/* Keep Alive Toggle */}
+                            <div className="flex items-center space-x-3">
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        checked={isKeepAlive}
+                                        onChange={(e) => setPlayerState({ isKeepAlive: e.target.checked })}
+                                        className="sr-only peer"
+                                        id="keep-alive-toggle"
+                                    />
+                                    {/* Track */}
+                                    <label
+                                        htmlFor="keep-alive-toggle"
+                                        className={`block w-14 h-8 rounded-full cursor-pointer transition-all duration-300 ease-in-out ${isKeepAlive
+                                            ? 'bg-sky-500 shadow-[0_0_15px_rgba(14,165,233,0.4)]'
+                                            : 'bg-slate-700 hover:bg-slate-600'
+                                            }`}
+                                    >
+                                        {/* Knob */}
+                                        <span
+                                            className={`absolute left-1 top-1 w-6 h-6 bg-white rounded-full transition-transform duration-300 ease-spring ${isKeepAlive ? 'translate-x-6' : 'translate-x-0'
+                                                } shadow-md flex items-center justify-center`}
+                                        >
+                                            {isKeepAlive && (
+                                                <Headphones size={12} className="text-sky-500 animate-in fade-in zoom-in duration-300" />
+                                            )}
+                                        </span>
+                                    </label>
+                                </div>
+                                <div className="flex flex-col select-none">
+                                    <label
+                                        htmlFor="keep-alive-toggle"
+                                        className={`text-sm font-semibold cursor-pointer transition-colors ${isKeepAlive ? 'text-sky-400' : 'text-slate-200'
+                                            }`}
+                                    >
+                                        Headphone Saver
+                                    </label>
+                                    <span className="text-[10px] text-slate-400">
+                                        {isKeepAlive ? 'Active: Preventing Sleep' : 'Off: Standard Power'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="hidden md:block w-px h-10 bg-white/10 mx-2"></div>
+
+                            {/* Noise Cancellation Toggle & Slider */}
+                            <div className="flex flex-col relative">
+                                <div className="flex items-center space-x-3">
+                                    <div className="relative">
+                                        <input
+                                            type="checkbox"
+                                            checked={isNoiseCanceling}
+                                            onChange={(e) => {
+                                                setIsNoiseCanceling(e.target.checked);
+                                                if (!e.target.checked) setShowNoiseSlider(false);
+                                            }}
+                                            className="sr-only peer"
+                                            id="noise-cancel-toggle"
+                                        />
+                                        {/* Track */}
+                                        <label
+                                            htmlFor="noise-cancel-toggle"
+                                            className={`block w-14 h-8 rounded-full cursor-pointer transition-all duration-300 ease-in-out ${isNoiseCanceling
+                                                ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                                                : 'bg-slate-700 hover:bg-slate-600'
+                                                }`}
+                                        >
+                                            {/* Knob */}
+                                            <span
+                                                className={`absolute left-1 top-1 w-6 h-6 bg-white rounded-full transition-transform duration-300 ease-spring ${isNoiseCanceling ? 'translate-x-6' : 'translate-x-0'
+                                                    } shadow-md flex items-center justify-center`}
+                                            >
+                                                {isNoiseCanceling && (
+                                                    <VolumeX size={12} className="text-emerald-500 animate-in fade-in zoom-in duration-300" />
+                                                )}
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <div
+                                        className={`flex flex-col select-none ${isNoiseCanceling ? 'cursor-pointer hover:opacity-80' : 'opacity-50'}`}
+                                        onClick={() => isNoiseCanceling && setShowNoiseSlider(!showNoiseSlider)}
+                                    >
+                                        <label
+                                            className={`text-sm font-semibold transition-colors flex items-center gap-1 ${isNoiseCanceling ? 'text-emerald-400 cursor-pointer' : 'text-slate-200'
+                                                }`}
+                                        >
+                                            <span>(Alt + A)</span> إيقاف تشغيل منع الضوضاء
+                                        </label>
+                                        <span className="text-[10px] text-slate-400 text-right">
+                                            {isNoiseCanceling
+                                                ? 'Active: Studio Noise Elimination'
+                                                : 'Off: Standard Audio'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Slider Dropdown Menu */}
+                                {showNoiseSlider && isNoiseCanceling && (
+                                    <div className="absolute top-12 left-0 right-0 bg-slate-800 rounded-lg p-3 shadow-xl border border-slate-700/50 z-[100] animate-in fade-in slide-in-from-top-2">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs text-slate-300 font-medium">قوة العزل</span>
+                                            <span className="text-xs font-mono text-emerald-400">{noiseReductionLevel}%</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            value={noiseReductionLevel}
+                                            onChange={(e) => setNoiseReductionLevel(Number(e.target.value))}
+                                            className="w-full h-1.5 bg-slate-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50
+                                                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:bg-emerald-400 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="hidden md:block w-px h-10 bg-white/10 mx-2"></div>
+
+                            {/* Volume Boost */}
+                            <div className="flex items-center flex-1 w-full md:w-auto space-x-3">
+                                <div className={`p-2 rounded-lg ${volume > 1.0 ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700/50 text-slate-400'}`}>
+                                    {volume > 1.0 && volume < 2.0 ? <AlertCircle size={18} /> : <VolumeIcon size={18} />}
+                                </div>
+                                <div className="flex-1 flex flex-col space-y-1">
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-slate-400 font-medium">Safe Boost Volume</span>
+                                        <span className={`font-mono font-bold ${volume > 1.0 ? 'text-amber-400' : 'text-slate-300'}`}>
+                                            {Math.round(volume * 100)}%
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="3.0"
+                                        step="0.05"
+                                        value={volume}
+                                        onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                                        className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                    )}
+        </>
+    )
+}
+
+{/* YOUTUBE TAB */ }
+{
+    sourceType === 'youtube' && (
+        <>
+            {!youtubeId && (
+                <div className="flex flex-col gap-3 p-6 rounded-xl bg-slate-800/30 border border-slate-700/50">
+                    <label className="text-slate-300 font-medium">YouTube Video URL</label>
+                    <input
+                        type="text"
+                        value={youtubeUrl}
+                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        className="px-4 py-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                    <button
+                        onClick={handleYouTubeSubmit}
+                        className="px-4 py-3 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
+                    >
+                        Load Video
+                    </button>
+                </div>
+            )}
+
+            {youtubeId && (
+                <div className="relative flex-1 bg-black rounded-xl overflow-hidden">
+                    <iframe
+                        src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&controls=1`}
+                        className="w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                    />
+                    <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/60 backdrop-blur-sm px-3 py-2 rounded-lg">
+                        <Youtube size={16} className="text-red-500" />
+                        <span className="text-white text-sm font-medium">YouTube Video</span>
+                        <button
+                            onClick={clearYouTube}
+                            className="p-1 hover:bg-white/20 rounded transition-colors"
+                        >
+                            <X size={14} className="text-white" />
+                        </button>
+                    </div>
+                </div>
+            )}
+        </>
+    )
+}
+        </div >
+    );
+};

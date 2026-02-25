@@ -12,6 +12,7 @@ interface AuthModalProps {
     onGoogleSignIn?: () => void;
     onEmailSignIn?: () => void;
     initialMode?: 'LOGIN' | 'REGISTER';
+    onSuccess?: () => void;
 }
 
 type Mode = 'LOGIN' | 'EMAIL_LOGIN' | 'REG_IDENTITY' | 'REG_PROFILE' | 'REG_INIT';
@@ -21,7 +22,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     onClose,
     onGoogleSignIn,
     onEmailSignIn,
-    initialMode = 'LOGIN'
+    initialMode = 'LOGIN',
+    onSuccess
 }) => {
     const { login, loginWithGoogle, register, authModal } = useStore();
     const [mode, setMode] = useState<Mode>(initialMode === 'REGISTER' ? 'REG_IDENTITY' : 'LOGIN');
@@ -62,6 +64,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setIsLoading(false);
         if (result.success) {
             if (authModal.onSuccess) authModal.onSuccess();
+            if (onSuccess) onSuccess();
             onClose();
         } else {
             // Show the actual error bubbling up from Service/Firebase
@@ -77,6 +80,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setIsLoading(false);
         if (success) {
             if (authModal.onSuccess) authModal.onSuccess();
+            if (onSuccess) onSuccess();
             onClose();
         } else {
             setError("Invalid credentials. Please try again.");
@@ -97,6 +101,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setIsLoading(false);
         if (success) {
             if (authModal.onSuccess) authModal.onSuccess();
+            if (onSuccess) onSuccess();
             onClose();
         } else {
             setMode('REG_PROFILE');

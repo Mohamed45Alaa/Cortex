@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    // Force Re-eval
     "target": "es5",
     "lib": [
       "dom",
@@ -31,8 +30,8 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

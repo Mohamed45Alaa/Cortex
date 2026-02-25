@@ -71,9 +71,11 @@ export const RealtimePresenceService = {
                         state: isHidden ? 'background' : 'online',
                         lastSeenAt: serverTimestamp(),
                         // We preserve existing inSession/currentPage if any
-                    });
-                });
+                    }).catch(e => console.warn('[RTDB] Presence update ignored:', e));
+                }).catch(e => console.warn('[RTDB] Presence onDisconnect ignored:', e));
             }
+        }, (err) => {
+            console.warn('[RTDB] connectedRef error (Ignored if logged out):', err);
         });
 
         // 2. LISTEN FOR KILL SWITCH (Admin / Zombie Reaper)
@@ -87,6 +89,8 @@ export const RealtimePresenceService = {
                     useStore.getState().endActiveSession(false, true, data);
                 });
             }
+        }, (error) => {
+            console.warn("[RTDB] 🚨 Termination Listener Error (Ignored):", error);
         });
     },
 
@@ -99,6 +103,25 @@ export const RealtimePresenceService = {
         callSessionApi('PRESENCE', {
             state,
             currentPage: window.location.pathname // Tracking Page Context
+        });
+    },
+
+    /**
+     * INSTANT STATE UPDATE — writes directly to RTDB client SDK.
+     * Use this for time-critical changes (e.g. visibilitychange) 
+     * since callSessionApi goes through HTTP which adds ~200-500ms+ latency.
+     */
+    updateStateImmediate: (uid: string, state: 'online' | 'background') => {
+        const db = getDatabaseInstance();
+        if (!db) return;
+        const statusRef = ref(db, `status/${uid}`);
+        update(statusRef, {
+            state,
+            lastSeenAt: Date.now(),
+        }).catch(err => {
+            // Fallback to API if direct write fails (e.g. security rules block client writes)
+            console.warn('[Presence] Direct RTDB write failed, falling back to API:', err);
+            callSessionApi('PRESENCE', { state, currentPage: window.location.pathname });
         });
     },
 

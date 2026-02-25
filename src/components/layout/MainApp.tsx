@@ -33,11 +33,14 @@ const t = (key: string, lang: Language) => {
     return translations[lang][key] || key;
 };
 
-export function MainApp() {
+export function MainApp({ initialView }: { initialView?: any }) {
     // 1. Session Persistence Hook
     useRestoreActiveSession();
 
-    const [context, setContext] = useState<FlowContext>(FlowEngine.getInitialState());
+    const [context, setContext] = useState<FlowContext>({
+        ...FlowEngine.getInitialState(),
+        currentState: initialView || 'DASHBOARD_HOME'
+    });
     const [inputValue, setInputValue] = useState<any>(null);
 
     // Warning Modal State
@@ -46,17 +49,24 @@ export function MainApp() {
     const [pendingModeSelection, setPendingModeSelection] = useState<LectureStudyMode | null>(null);
 
     // App State
-    const [language, setLanguage] = useState<Language>('en');
-    const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+    const [language, setLanguage] = useState<Language>('ar');
+    const theme = 'dark'; // Forced Dark Mode
 
     // Zustand Store
-    const { subjects, lectures, addSubject, registerSession, setProfile, profile, sessions, dailyLoad, addLecture, syncAuth, setHighlightLectureId } = useStore();
+    const { subjects, lectures, addSubject, registerSession, setProfile, profile, sessions, dailyLoad, addLecture, syncAuth, setHighlightLectureId, updateSubjectConfig } = useStore();
 
     // Theme Effect
     useEffect(() => {
-        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-theme', 'dark');
         document.documentElement.setAttribute('dir', 'ltr'); // Force LTR for consistency
-    }, [theme]); // Removed language dependency to enforce LTR
+        const savedLang = localStorage.getItem('user_lang');
+        if (savedLang === 'en' || savedLang === 'ar') setLanguage(savedLang);
+    }, []); // Run once
+
+    // Sync language changes to localStorage
+    useEffect(() => {
+        localStorage.setItem('user_lang', language);
+    }, [language]);
 
     // Keyboard listener for mode selection
     useEffect(() => {
@@ -94,7 +104,7 @@ export function MainApp() {
                 setContext(prev => ({
                     ...prev,
                     currentState: 'STUDY_EXECUTION',
-                    selectedSubjectId: activeSession.lectureId
+                    selectedSubjectId: activeSession.subjectId
                 }));
             }
         } else {
@@ -422,21 +432,27 @@ export function MainApp() {
         if (['SUBJECT_LIST', 'DASHBOARD_SUBJECT', 'DASHBOARD_SETTINGS', 'DASHBOARD_HOME', 'DASHBOARD_TOOLS', 'DASHBOARD_HISTORY', 'DASHBOARD_CONFIG', 'DASHBOARD_ACCOUNT'].includes(context.currentState)) {
             // ... View Logic ...
             if (context.currentState === 'DASHBOARD_SETTINGS' && context.selectedSubjectId) {
-                const subject = subjects.find(s => s.id === context.selectedSubjectId)!;
+                const subject = subjects.find(s => s.id === context.selectedSubjectId);
+
+                if (!subject) {
+                    setTimeout(() => setContext(prev => ({ ...prev, currentState: 'SUBJECT_LIST', selectedSubjectId: undefined })), 0);
+                    return null;
+                }
+
                 return (
                     <ControlLayout
                         currentView={context.currentState}
                         onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
                         lang={language}
                         onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
-                        theme={theme}
-                        onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                        theme={'dark'}
+                        onToggleTheme={() => { }}
                     >
                         <SubjectSettingsView
                             subject={subject}
                             lang={language}
                             onSave={(config) => {
-                                console.log("Saving Config:", config);
+                                updateSubjectConfig(subject.id, config);
                                 setContext(prev => ({ ...prev, currentState: 'DASHBOARD_SUBJECT' }));
                             }}
                             onCancel={() => setContext(prev => ({ ...prev, currentState: 'DASHBOARD_SUBJECT' }))}
@@ -446,21 +462,31 @@ export function MainApp() {
             }
 
             if (context.currentState === 'DASHBOARD_SUBJECT' && context.selectedSubjectId) {
-                const subject = subjects.find(s => s.id === context.selectedSubjectId)!;
+                const subject = subjects.find(s => s.id === context.selectedSubjectId);
+
+                if (!subject) {
+                    setTimeout(() => setContext(prev => ({ ...prev, currentState: 'SUBJECT_LIST', selectedSubjectId: undefined })), 0);
+                    return null;
+                }
+
                 return (
                     <ControlLayout
                         currentView={context.currentState}
                         onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
                         lang={language}
                         onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
-                        theme={theme}
-                        onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                        theme={'dark'}
+                        onToggleTheme={() => { }}
                     >
                         <SubjectDetailView
                             subjectId={subject.id}
                             onQuestionFlowStart={(flowType, contextId, predictedDuration) => {
                                 if (flowType === 'SESSION_START') {
-                                    const lecture = lectures.find(l => l.id === contextId)!;
+                                    const lecture = lectures.find(l => l.id === contextId);
+                                    if (!lecture) {
+                                        console.error("Lecture not found for session start");
+                                        return;
+                                    }
                                     // REMOVED: PreStudyEngine.registerSession (Integrity Fix)
                                     // registerSession(session);
                                     setContext(prev => ({
@@ -478,6 +504,7 @@ export function MainApp() {
                             }}
                             onBack={() => setContext(prev => ({ ...prev, currentState: 'SUBJECT_LIST' }))}
                             highlightLectureId={context.newlyCreatedLectureId}
+                            lang={language}
                         />
                     </ControlLayout>
                 );
@@ -490,10 +517,10 @@ export function MainApp() {
                         onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
                         lang={language}
                         onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
-                        theme={theme}
-                        onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                        theme={'dark'}
+                        onToggleTheme={() => { }}
                     >
-                        <HistoryView />
+                        <HistoryView lang={language} />
                     </ControlLayout>
                 );
             }
@@ -505,8 +532,8 @@ export function MainApp() {
                         onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
                         lang={language}
                         onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
-                        theme={theme}
-                        onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                        theme={'dark'}
+                        onToggleTheme={() => { }}
                     >
                         <SystemConfigView lang={language} />
                     </ControlLayout>
@@ -520,8 +547,8 @@ export function MainApp() {
                         onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
                         lang={language}
                         onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
-                        theme={theme}
-                        onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                        theme={'dark'}
+                        onToggleTheme={() => { }}
                     >
                         <ToolsView />
                     </ControlLayout>
@@ -535,8 +562,8 @@ export function MainApp() {
                         onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
                         lang={language}
                         onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
-                        theme={theme}
-                        onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                        theme={'dark'}
+                        onToggleTheme={() => { }}
                     >
                         <AccountSettingsView lang={language} />
                     </ControlLayout>
@@ -549,8 +576,8 @@ export function MainApp() {
                     onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
                     lang={language}
                     onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
-                    theme={theme}
-                    onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                    theme={'dark'}
+                    onToggleTheme={() => { }}
                 >
                     <DashboardView
                         onSelectSubject={(id) => setContext(prev => ({ ...prev, currentState: 'DASHBOARD_SUBJECT', selectedSubjectId: id }))}
@@ -569,8 +596,8 @@ export function MainApp() {
                     onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
                     lang={language}
                     onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
-                    theme={theme}
-                    onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                    theme={'dark'}
+                    onToggleTheme={() => { }}
                 >
                     <SessionTimerView
                         allocatedMinutes={allocated}
@@ -593,8 +620,8 @@ export function MainApp() {
                 onNavigate={(state) => setContext(prev => ({ ...prev, currentState: state }))}
                 lang={language}
                 onToggleLang={() => setLanguage(l => l === 'en' ? 'ar' : 'en')}
-                theme={theme}
-                onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                theme={'dark'}
+                onToggleTheme={() => { }}
             >
                 {/* Special Case: Study Mode Selector */}
                 {context.currentState === 'REG_MODE_SELECT' ? (

@@ -70,15 +70,17 @@ export const AdminService = {
                         completed: data.completed || false,
                         createdAt: data.createdAt || data.updatedAt || new Date().toISOString(),
                         fullName: data.fullName,
+                        isPremium: data.isPremium || false,
+                        premiumTier: data.premiumTier || 0,
                     } as any;
 
                     allUsers.push(profile);
                 }
             });
 
-            // Exclude Admins
+            // Exclude Admins and Incomplete Profiles
             const students = allUsers
-                .filter(u => u.role !== 'ADMIN')
+                .filter(u => u.role !== 'ADMIN' && u.completed === true && u.fullName)
                 .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
             console.warn(`[AdminService] Returning ${students.length} students.`);
@@ -200,6 +202,8 @@ export const AdminService = {
             if (updates.university) rtdbUpdates.university = updates.university;
             if (updates.faculty) rtdbUpdates.faculty = updates.faculty;
             if (updates.academicYear) rtdbUpdates.academicYear = updates.academicYear;
+            if (updates.isPremium !== undefined) rtdbUpdates.isPremium = updates.isPremium;
+            if (updates.premiumTier !== undefined) rtdbUpdates.premiumTier = updates.premiumTier;
 
             // 3. EXECUTE PARALLEL WRITES
             const fsPromise = setDoc(userRef, firestoreUpdates, { merge: true });

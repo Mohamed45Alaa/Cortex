@@ -114,8 +114,8 @@ export const SessionTimerView: React.FC<SessionTimerViewProps> = ({
     const [finalSession, setFinalSession] = useState<StudySession | null>(null);
     const [showAnalysis, setShowAnalysis] = useState(false);
 
-    // [HARDENING] Immediate React to Termination State
-    const { terminationState, sessions } = useStore();
+    // [MODIFIED] Use Active Study Time from Store (Tools + Player)
+    const { terminationState, sessions, uiState } = useStore();
 
     useEffect(() => {
         if (terminationState) {
@@ -164,9 +164,12 @@ export const SessionTimerView: React.FC<SessionTimerViewProps> = ({
         const h = Math.floor(minutes / 60);
         const m = minutes % 60;
         let timePart = '';
-        if (h > 0) timePart += `${h} ${t.hours || 'hours'} `;
-        if (m > 0 || h === 0) timePart += `${m} ${t.minutes || 'minutes'}`;
-        return `Expected study time for this lecture is '${timePart.trim()}'`;
+        if (h > 0) timePart += `${h} ${t.hours || 'ساعات'} `;
+        if (m > 0 || h === 0) timePart += `${m} ${t.minutes || 'دقائق'}`;
+
+        return lang === 'en'
+            ? `Expected study time for this lecture is '${timePart.trim()}'`
+            : `الوقت المتوقع لإنهاء هذه المحاضرة هو '${timePart.trim()}'`;
     };
 
     // Actions
@@ -358,7 +361,12 @@ export const SessionTimerView: React.FC<SessionTimerViewProps> = ({
             */}
 
             {/* TIMER DISPLAY (Source of Truth for Intersection) */}
-            <div id="main-session-timer" className={styles.timerDisplay} ref={timerRef}>
+            <div
+                id="main-session-timer"
+                className={styles.timerDisplay}
+                ref={timerRef}
+            >
+                {/* [MODIFIED] Revert to Wall-Clock Time (displayTime) so it never stops automatically */}
                 {formatTime(displayTime)}
             </div>
 
@@ -422,11 +430,12 @@ export const SessionTimerView: React.FC<SessionTimerViewProps> = ({
                 </button>
             </div>
 
-            {/* EXPECTED TIME DISPLAY (Moved Below Controls) */}
             <div className={styles.expectedTime}>
                 {displayTime > effectiveDuration * 60 * 1000 ? (
                     <span style={{ color: '#F87171', fontWeight: 600, animation: 'pulse 2s infinite' }}>
-                        Expected time finished. Continue studying freely — time is still recorded.
+                        {lang === 'en'
+                            ? 'Expected time finished. Continue studying freely — time is still recorded.'
+                            : 'انتهى الوقت المتوقع. يمكنك الاستمرار في المذاكرة بحرية — الوقت لا يزال يُسجل.'}
                     </span>
                 ) : (
                     formatExpectedTime(effectiveDuration)

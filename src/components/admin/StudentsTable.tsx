@@ -1,7 +1,7 @@
 'use client';
 
 import { UserProfileWithMeta } from '@/core/types';
-import { Search, Filter, MoreHorizontal, User, Monitor, MousePointer2, Clock, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, User, Monitor, MousePointer2, Clock, AlertTriangle, Maximize2, Minimize2, Star } from 'lucide-react';
 import { useState, Fragment } from 'react';
 import { useStore } from '@/store/useStore'; // Keep for Error State/Actions
 
@@ -114,7 +114,7 @@ export const StudentsTable = ({ students }: Props) => {
                             ) : filteredStudents.length > 0 ? (
                                 (() => {
                                     // Grouping Logic (Strict 7-Tier)
-                                    const groups: Record<number, any[]> = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] };
+                                    const groups: Record<number, any[]> = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [] };
                                     filteredStudents.forEach(s => {
                                         const rank = (s as any).sortRank || 7;
                                         if (!groups[rank]) groups[rank] = [];
@@ -126,16 +126,17 @@ export const StudentsTable = ({ students }: Props) => {
                                         2: 'Online (No Session)',
                                         3: 'Background (In Session)',
                                         4: 'Background (No Session)',
-                                        5: 'Offline (In Session)', // PURPLE
+                                        5: 'Offline (In Session)',
                                         6: 'Offline (Recent)',
-                                        7: 'Inactive (>7 Days)'
+                                        7: 'Offline',
+                                        8: 'Inactive (>7 Days)'
                                     };
 
                                     return Object.keys(groups).sort().map(rankKey => {
                                         const rank = parseInt(rankKey);
                                         const studentsInGroup = groups[rank];
 
-                                        if (studentsInGroup.length === 0 && rank !== 7) return null;
+                                        if (studentsInGroup.length === 0 && rank !== 8) return null;
 
                                         return (
                                             <Fragment key={`group-${rank}`}>
@@ -148,10 +149,11 @@ export const StudentsTable = ({ students }: Props) => {
                                                                     1: 'shadow-[0_0_20px_-5px_rgba(16,185,129,0.2)] border-emerald-500/10', // Green
                                                                     2: 'shadow-[0_0_20px_-5px_rgba(16,185,129,0.2)] border-emerald-500/10', // Green
                                                                     3: 'shadow-[0_0_20px_-5px_rgba(59,130,246,0.2)] border-blue-500/10',    // Blue
-                                                                    4: 'shadow-[0_0_20px_-5px_rgba(59,130,246,0.2)] border-blue-500/10',    // Blue
-                                                                    5: 'shadow-[0_0_20px_-5px_rgba(139,92,246,0.3)] border-purple-500/20',  // PURPLE
+                                                                    4: 'shadow-[0_0_20px_-5px_rgba(59,130,246,0.2)] border-blue-500/10',    // Blue (No Session)
+                                                                    5: 'shadow-[0_0_20px_-5px_rgba(139,92,246,0.3)] border-purple-500/20',  // Purple
                                                                     6: 'shadow-[0_0_20px_-5px_rgba(148,163,184,0.1)] border-white/5',       // Gray
-                                                                    7: 'shadow-[0_0_20px_-5px_rgba(239,68,68,0.2)] border-red-500/10'       // Red (Inactive)
+                                                                    7: 'shadow-[0_0_20px_-5px_rgba(148,163,184,0.1)] border-white/5',       // Gray (Offline)
+                                                                    8: 'shadow-[0_0_20px_-5px_rgba(239,68,68,0.2)] border-red-500/10'       // Red (Inactive)
                                                                 };
 
                                                                 const dotStyles: Record<number, string> = {
@@ -161,7 +163,8 @@ export const StudentsTable = ({ students }: Props) => {
                                                                     4: 'from-blue-300 to-blue-600 shadow-[0_0_8px_rgba(59,130,246,0.4)]',
                                                                     5: 'from-purple-300 to-purple-600 shadow-[0_0_8px_rgba(139,92,246,0.5)]',
                                                                     6: 'from-slate-400 to-slate-700 shadow-[0_0_8px_rgba(148,163,184,0.2)]',
-                                                                    7: 'from-red-300 to-red-600 shadow-[0_0_8px_rgba(239,68,68,0.4)]' // Red
+                                                                    7: 'from-slate-400 to-slate-700 shadow-[0_0_8px_rgba(148,163,184,0.2)]', // Gray (Offline)
+                                                                    8: 'from-red-300 to-red-600 shadow-[0_0_8px_rgba(239,68,68,0.4)]'  // Red
                                                                 };
 
                                                                 return (
@@ -181,7 +184,7 @@ export const StudentsTable = ({ students }: Props) => {
                                                 </tr>
 
                                                 {/* EMPTY STATE FOR INACTIVE GROUP */}
-                                                {rank === 6 && studentsInGroup.length === 0 && (
+                                                {rank === 8 && studentsInGroup.length === 0 && (
                                                     <tr className="bg-slate-900/30">
                                                         <td colSpan={5} className="px-6 py-4 text-xs text-slate-500 italic text-center">
                                                             No inactive students
@@ -216,10 +219,11 @@ export const StudentsTable = ({ students }: Props) => {
                                                                             const color = (student as any).dotColor || 'gray';
                                                                             let dotClass = 'bg-slate-500 shadow-sm';
 
-                                                                            if (color === 'green') dotClass = 'bg-[#22c55e] shadow-[0_0_10px_rgba(34,197,94,0.6)] ring-2 ring-[#0B1120]';       // Online
-                                                                            else if (color === 'blue') dotClass = 'bg-[#3b82f6] shadow-[0_0_10px_rgba(59,130,246,0.6)] ring-2 ring-[#0B1120]';  // Background
-                                                                            else if (color === 'purple') dotClass = 'bg-[#a855f7] shadow-[0_0_10px_rgba(168,85,247,0.6)] ring-2 ring-[#0B1120]'; // Offline In Session
+                                                                            if (color === 'green') dotClass = 'bg-[#22c55e] shadow-[0_0_10px_rgba(34,197,94,0.6)] ring-2 ring-[#0B1120]';       // Online + Session
+                                                                            else if (color === 'blue') dotClass = 'bg-[#3b82f6] shadow-[0_0_10px_rgba(59,130,246,0.6)] ring-2 ring-[#0B1120]';  // Background + Session
+                                                                            else if (color === 'purple') dotClass = 'bg-[#a855f7] shadow-[0_0_10px_rgba(168,85,247,0.6)] ring-2 ring-[#0B1120]'; // Offline + Session
                                                                             else if (color === 'red') dotClass = 'bg-[#ef4444] shadow-[0_0_10px_rgba(239,68,68,0.6)] ring-2 ring-[#0B1120]';   // Inactive
+                                                                            else if (color === 'orange') dotClass = 'bg-[#f97316] shadow-[0_0_10px_rgba(249,115,22,0.6)] ring-2 ring-[#0B1120]'; // Background, No Session
                                                                             else dotClass = 'bg-slate-500 border-2 border-[#0B1120]';                                                       // Offline/Gray
 
                                                                             return (
@@ -229,9 +233,16 @@ export const StudentsTable = ({ students }: Props) => {
                                                                     </div>
                                                                     <div className="flex flex-col justify-center">
                                                                         {student.fullName ? (
-                                                                            <span className="text-sm font-semibold text-slate-200 group-hover:text-white transition-colors">
-                                                                                {student.fullName}
-                                                                            </span>
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <span className="text-sm font-semibold text-slate-200 group-hover:text-white transition-colors">
+                                                                                    {student.fullName}
+                                                                                </span>
+                                                                                {student.isPremium && (
+                                                                                    <div className="flex -space-x-1" title={`Premium Tier ${student.premiumTier || 1}`}>
+                                                                                        <Star className="fill-amber-400 text-amber-500 drop-shadow-[0_0_5px_rgba(245,158,11,0.5)] z-10" size={12} />
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
                                                                         ) : (
                                                                             <span className="text-xs font-semibold text-amber-500 flex items-center gap-1.5 animate-pulse">
                                                                                 <AlertTriangle size={12} /> Profile Incomplete

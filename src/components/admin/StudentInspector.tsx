@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '@/core/types';
-import { X, Calendar, User, Clock, Shield, CheckCircle2, AlertCircle, AlertTriangle, PlayCircle, StopCircle, RefreshCcw, Trash2, School, Phone, BookOpen, PenLine, Save, Loader2, Check } from 'lucide-react';
+import { X, Calendar, User, Clock, Shield, CheckCircle2, AlertCircle, AlertTriangle, PlayCircle, StopCircle, RefreshCcw, Trash2, School, Phone, BookOpen, PenLine, Save, Loader2, Check, Star } from 'lucide-react';
 import { AdminService } from '@/core/services/AdminService';
 import { universities } from '@/config/universities';
 import { faculties } from '@/config/faculties';
@@ -28,7 +28,10 @@ export const StudentInspector = ({ student, onClose }: StudentInspectorProps) =>
                 phone: student.phone || (student.identity as any)?.phone || '',
                 university: student.university || '',
                 faculty: student.faculty || '',
-                academicYear: student.academicYear || 'Year 1'
+                academicYear: student.academicYear || 'Year 1',
+                // Premium Membership
+                isPremium: student.isPremium || false,
+                premiumTier: student.premiumTier || 1
             });
             setIsEditing(false);
             setSaveStatus('IDLE');
@@ -43,7 +46,9 @@ export const StudentInspector = ({ student, onClose }: StudentInspectorProps) =>
             editForm.phone !== (student.phone || (student.identity as any)?.phone || '') ||
             editForm.university !== student.university ||
             editForm.faculty !== student.faculty ||
-            editForm.academicYear !== student.academicYear
+            editForm.academicYear !== student.academicYear ||
+            editForm.isPremium !== (student.isPremium || false) ||
+            editForm.premiumTier !== (student.premiumTier || 1)
         );
     };
 
@@ -57,7 +62,9 @@ export const StudentInspector = ({ student, onClose }: StudentInspectorProps) =>
             phone: editForm.phone,
             university: editForm.university,
             faculty: editForm.faculty,
-            academicYear: editForm.academicYear
+            academicYear: editForm.academicYear,
+            isPremium: editForm.isPremium,
+            premiumTier: editForm.premiumTier
         };
 
         const result = await AdminService.updateStudentProfile(student.id, updates);
@@ -200,7 +207,7 @@ export const StudentInspector = ({ student, onClose }: StudentInspectorProps) =>
                             <div className="flex flex-col items-center text-center space-y-4 pb-6 border-b border-white/5 transition-all">
                                 <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-2xl font-bold text-white shadow-lg relative shrink-0">
                                     {student.name?.charAt(0)?.toUpperCase() || '?'}
-                                    <div className={`absolute bottom-0 right-0 w-5 h-5 rounded-full border-4 border-[#0F172A] ${(student as any).dotColor === 'green' ? 'bg-emerald-500' : (student as any).dotColor === 'blue' ? 'bg-blue-500' : (student as any).dotColor === 'purple' ? 'bg-purple-500' : (student as any).dotColor === 'red' ? 'bg-red-500' : 'bg-slate-500'}`}></div>
+                                    <div className={`absolute bottom-0 right-0 w-5 h-5 rounded-full border-4 border-[#0F172A] ${(student as any).dotColor === 'green' ? 'bg-emerald-500' : (student as any).dotColor === 'blue' ? 'bg-blue-500' : (student as any).dotColor === 'purple' ? 'bg-purple-500' : (student as any).dotColor === 'red' ? 'bg-red-500' : (student as any).dotColor === 'orange' ? 'bg-orange-500' : 'bg-slate-500'}`}></div>
                                 </div>
                                 <div className="w-full space-y-2">
                                     {isEditing ? (
@@ -293,6 +300,74 @@ export const StudentInspector = ({ student, onClose }: StudentInspectorProps) =>
                                     No active session
                                 </div>
                             )}
+
+                            {/* MEMBERSHIP CONTEXT */}
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-bold text-amber-500/50 uppercase tracking-widest pl-1">Membership Context</h4>
+                                <div className="p-4 rounded-xl bg-slate-900/50 border border-amber-500/20 flex flex-col gap-4 relative overflow-hidden">
+                                    {/* Subtle Glow */}
+                                    {(isEditing ? editForm.isPremium : student.isPremium) && (
+                                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                                    )}
+                                    {isEditing ? (
+                                        <>
+                                            <div className="flex items-center justify-between z-10">
+                                                <div className="flex items-center gap-2">
+                                                    <Star className="text-amber-500" size={16} />
+                                                    <span className="text-sm font-medium text-white">Premium Membership</span>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
+                                                        checked={editForm.isPremium || false}
+                                                        onChange={(e) => setEditForm(prev => ({
+                                                            ...prev,
+                                                            isPremium: e.target.checked,
+                                                            premiumTier: e.target.checked ? Math.max(1, prev.premiumTier || 1) : 0
+                                                        }))}
+                                                    />
+                                                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                                </label>
+                                            </div>
+                                            {editForm.isPremium && (
+                                                <div className="flex flex-col gap-2 pt-2 border-t border-white/5 z-10 animate-in fade-in zoom-in-95">
+                                                    <span className="text-xs text-slate-400">Membership Tier</span>
+                                                    <div className="flex items-center gap-2">
+                                                        {[1, 2, 3, 4, 5].map(tier => (
+                                                            <button
+                                                                key={tier}
+                                                                onClick={() => setEditForm(prev => ({ ...prev, premiumTier: tier }))}
+                                                                className={`p-2 rounded-lg transition-all ${editForm.premiumTier === tier ? 'bg-amber-500/20 border border-amber-500' : 'bg-slate-800 border border-white/5 opacity-50 hover:opacity-100 hover:bg-slate-700'}`}
+                                                            >
+                                                                <Star className={editForm.premiumTier && editForm.premiumTier >= tier ? 'fill-amber-500 text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'text-slate-500'} size={20} />
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="flex items-center gap-4 z-10">
+                                            <div className={`p-3 rounded-xl flex items-center justify-center ${student.isPremium ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-500 border border-white/5'}`}>
+                                                <Star className={student.isPremium ? "fill-current" : ""} size={24} />
+                                            </div>
+                                            <div>
+                                                <h5 className={`font-bold text-sm ${student.isPremium ? 'text-amber-400 drop-shadow-[0_0_5px_rgba(245,158,11,0.2)]' : 'text-slate-400'}`}>
+                                                    {student.isPremium ? 'Premium Member' : 'Standard Student'}
+                                                </h5>
+                                                {student.isPremium && (
+                                                    <div className="flex items-center gap-0.5 mt-1">
+                                                        {[...Array(5)].map((_, i) => (
+                                                            <Star key={i} className={i < (student.premiumTier || 1) ? "fill-amber-400 text-amber-400" : "text-slate-700"} size={14} />
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
 
                             {/* ACADEMIC CONTEXT */}
                             <div className="space-y-4">

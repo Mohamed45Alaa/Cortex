@@ -122,19 +122,24 @@ export const CognitiveLoadEngine = {
         let score = 5.0;
         let message = '';
         let color: 'green' | 'blue' | 'red' = 'green';
+        let isValid = true;
 
         // ==========================================
         // RULE 1: EARLY FINISH (A < L)
         // Anti-Cheating Zone
         // ==========================================
         if (A < L) {
-            // Gradual reduction starting from 9.0 down to 5.0
-            // The closer to 0, the worse the score
-            const missingRatio = (L - A) / L; // 0.0 to 1.0
-            score = Math.max(5, 9 - (missingRatio * 4)); // Range: 5.0 to 9.0
+            // Proportional reduction: 100% attendance = 9.0 score, 50% = 4.5
+            const attendedRatio = Math.max(0, A / L);
+            score = attendedRatio * 9.0;
 
             color = 'red';
-            message = 'يبدو أنك أنهيت المحاضرة بسرعة أقل من زمنها الطبيعي، حاول التعمق أكثر.';
+            if (attendedRatio < 0.25) {
+                isValid = false;
+                message = 'الوقت المقضي لا يغطي حتى 25% من وقت المحاضرة. الجلسة لن تحسب بشكل كامل.';
+            } else {
+                message = 'يبدو أنك أنهيت المحاضرة بسرعة أقل من زمنها الطبيعي، حاول التعمق أكثر.';
+            }
         }
         // ==========================================
         // RULE 2: PERFECT ZONE (L ≤ A ≤ E)

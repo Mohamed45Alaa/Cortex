@@ -287,6 +287,10 @@ export interface UserProfile {
     rank?: number;       // 1-7 (Placeholder)
     lastActive?: number; // Timestamp (Placeholder)
 
+    // ✅ PREMIUM MEMBERSHIP
+    isPremium?: boolean;
+    premiumTier?: number; // 1 to 5 stars
+
     // ✅ ADDED FOR ADMIN / REALTIME
     study?: StudyState;
     presence?: PresenceState;

@@ -61,9 +61,9 @@ export const SessionTracker = () => {
             newType = 'TOOL';
         }
         // PRIORITY 2.5: PLAYER PLAYING (GREEN)
-        // Player is open AND media is playing -> GREEN (TOOL)
+        // Player is open AND media is playing -> GREEN (ACTIVE)
         else if (activeToolId === 'player' && isMediaPlaying) {
-            newType = 'TOOL';
+            newType = 'ACTIVE';
         }
         // PRIORITY 3: IDLE (YELLOW)
         // Player opened but NOT playing OR No Media + No Interaction > 60s -> YELLOW

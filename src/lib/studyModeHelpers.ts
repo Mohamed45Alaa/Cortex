@@ -1,3 +1,4 @@
+import { translations, Language } from '@/core/i18n/translations';
 import { LectureStudyMode } from '@/core/types';
 
 // ==========================================
@@ -22,44 +23,47 @@ export function getModeMultiplier(mode: LectureStudyMode): number {
 /**
  * Recommends a study mode based on lecture difficulty
  * @param difficulty 0-10 scale
+ * @param lang Language
  * @returns recommended mode and reason
  */
-export function recommendStudyMode(difficulty: number): {
+export function recommendStudyMode(difficulty: number, lang: Language = 'ar'): {
     mode: LectureStudyMode;
     reason: string;
 } {
+    const t = translations[lang];
     if (difficulty <= 4) {
         return {
             mode: 'achievement',
-            reason: 'المحاضرة سهلة، نوصي بوضع الإنجاز.'
+            reason: t.reason_easy
         };
     }
 
     if (difficulty <= 7) {
         return {
             mode: 'standard',
-            reason: 'صعوبة متوسطة، الوضع الأساسي مناسب.'
+            reason: t.reason_standard
         };
     }
 
     return {
         mode: 'importance',
-        reason: 'محاضرة صعبة، نوصي بوضع الأهمية للتعمق.'
+        reason: t.reason_hard
     };
 }
 
 /**
- * Gets the Arabic label for a study mode
+ * Gets the label for a study mode
  */
-export function getModeLabel(mode?: LectureStudyMode): string {
+export function getModeLabel(mode: LectureStudyMode | undefined, lang: Language = 'ar'): string {
+    const t = translations[lang];
     switch (mode) {
         case 'achievement':
-            return 'وضع الإنجاز';
+            return t.mode_achievement;
         case 'importance':
-            return 'وضع الأهمية';
+            return t.mode_importance;
         case 'standard':
         default:
-            return 'الوضع الأساسي';
+            return t.mode_standard;
     }
 }
 
@@ -81,15 +85,16 @@ export function getModeIcon(mode: LectureStudyMode): string {
 /**
  * Gets the description for a study mode
  */
-export function getModeDescription(mode: LectureStudyMode): string {
+export function getModeDescription(mode: LectureStudyMode, lang: Language = 'ar'): string {
+    const t = translations[lang];
     switch (mode) {
         case 'achievement':
-            return 'اختر هذا للمحاضرات السهلة التي لا تتطلب أدوات الذكاء الاصطناعي أو الترجمة أو البحث العميق.';
+            return t.desc_achievement;
         case 'importance':
-            return 'للمحاضرات الصعبة أو الطويلة التي تتطلب أدوات الذكاء الاصطناعي والترجمة والفيديوهات الخارجية والتركيز العميق.';
+            return t.desc_importance;
         case 'standard':
         default:
-            return 'موصى به – هذا هو وضع التقييم الرسمي.';
+            return t.desc_standard;
     }
 }
 

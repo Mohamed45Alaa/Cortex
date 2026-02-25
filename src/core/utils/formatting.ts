@@ -17,8 +17,9 @@
 export const formatCognitiveLoad = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) return "0";
 
-    // 1. Clamp
-    let safeValue = Math.min(10, Math.max(0, value));
+    // 1. Clamp Floor only
+    // Don't arbitrarily cap at 10 because Daily Load sums can exceed 10.
+    let safeValue = Math.max(0, value);
 
     // 2. Format to max 2 decimals & Strip trailing zeros
     // parseFloat() handles stripping trailing zeros from a fixed-point string

@@ -130,6 +130,16 @@ export const translations = {
         minutes: "minutes",
         expectedTime: "Expected study time",
 
+        // Academic Inputs Page
+        academic_inputs_title: "ACADEMIC INPUTS",
+        add_lecture_btn: "Add Lecture",
+        subject_not_found: "Subject Not Found",
+        rename_subject: "Rename Subject",
+        delete_subject: "Delete Subject",
+        delete_confirm: "Are you sure you want to delete this subject? This cannot be undone.",
+        col_grade: "Grade",
+        col_cost: "Cost",
+
         // Header
         enter_admin: "ENTER ADMIN MODE",
         sign_in: "Sign In",
@@ -194,6 +204,31 @@ export const translations = {
         understanding_low: "Low",
         understanding_high: "High",
         did_not_attend: "Did not attend\nlecture",
+
+        // Study Modes
+        mode_achievement: "Achievement Mode",
+        mode_standard: "Standard Mode",
+        mode_importance: "Importance Mode",
+
+        desc_achievement: "Choose this for easy lectures that do not require AI tools, translation, or deep research.",
+        desc_standard: "Recommended – This is the official evaluation mode.",
+        desc_importance: "For difficult or long lectures that require AI tools, translation, external videos, and deep focus.",
+
+        reason_easy: "Lecture is easy, Achievement Mode is recommended.",
+        reason_standard: "Medium difficulty, Standard Mode is suitable.",
+        reason_hard: "Lecture is difficult, Importance Mode is recommended for depth.",
+
+        recommended_badge: "Recommended",
+        minutes_short: "min",
+
+        // History View
+        academic_timeline: "Academic Timeline",
+        timeline_subtitle: "Track your regulation across time.",
+        timeline_empty: "No study history yet. Start your first session to build your academic timeline.",
+        current_badge: "CURRENT",
+        pending_count: "Pending",
+        col_day: "Day",
+        col_index: "Index",
     },
     ar: {
         orientation: "نظم حملك الدراسي، قراراً تلو الآخر.",
@@ -208,10 +243,10 @@ export const translations = {
         register_class: "تسجيل حصة",
         study_now: "بدء الجلسة",
         type_q: "نوع الجلسة؟",
-        duration_q: "المدة؟",
+        duration_q: "مدة المحاضرة؟",
         understanding_q: "مستوى فهمك للمحاضرة من شرح دكتور الكلية؟",
         demand_q: "الجهد الذهني؟",
-        duration_note: "مدة السجل الجامعي",
+        duration_note: "مدة تسجيل ريكورد المحاضرة",
         duration_warning: "ملاحظة: يجب عليك تسجيل أي محاضرة أو سكشن في الكلية باستخدام هاتفك الشخصي. هنا، ستقوم بتحديد مدة التسجيل الذي سجلته بهاتفك.",
         fam_q: "مستوى الإلمام؟",
         focus_q: "مستوى التركيز الحالي؟",
@@ -250,7 +285,7 @@ export const translations = {
         cycles: "جلسة",
         active_subjects: "المقررات",
         inspect: "دخول",
-        stability: "التمكن",
+        stability: "الحالة",
         exam_in: "الاختبار",
         days: "أيام",
         // Academic Input Empty State
@@ -325,6 +360,16 @@ export const translations = {
         minutes: "دقائق",
         expectedTime: "وقت الدراسة المتوقع",
 
+        // Academic Inputs Page
+        academic_inputs_title: "المدخلات الأكاديمية",
+        add_lecture_btn: "إضافة محاضرة",
+        subject_not_found: "المقرر غير موجود",
+        rename_subject: "إعادة تسمية المقرر",
+        delete_subject: "حذف المقرر",
+        delete_confirm: "هل أنت متأكد من حذف هذا المقرر؟ لا يمكن التراجع عن هذا الإجراء.",
+        col_grade: "التقدير",
+        col_cost: "التكلفة",
+
         // Header
         enter_admin: "دخول وضع المشرف",
         sign_in: "تسجيل الدخول",
@@ -389,5 +434,30 @@ export const translations = {
         understanding_low: "منخفض",
         understanding_high: "عالي",
         did_not_attend: "محضرتش\nالمحاضرة",
+
+        // Study Modes
+        mode_achievement: "وضع الإنجاز",
+        mode_standard: "الوضع الأساسي",
+        mode_importance: "وضع الأهمية",
+
+        desc_achievement: "اختر هذا للمحاضرات السهلة التي لا تتطلب أدوات الذكاء الاصطناعي أو الترجمة أو البحث العميق.",
+        desc_standard: "موصى به – هذا هو وضع التقييم الرسمي.",
+        desc_importance: "للمحاضرات الصعبة أو الطويلة التي تتطلب أدوات الذكاء الاصطناعي والترجمة والفيديوهات الخارجية والتركيز العميق.",
+
+        reason_easy: "المحاضرة سهلة، نوصي بوضع الإنجاز.",
+        reason_standard: "صعوبة متوسطة، الوضع الأساسي مناسب.",
+        reason_hard: "محاضرة صعبة، نوصي بوضع الأهمية للتعمق.",
+
+        recommended_badge: "موصى به",
+        minutes_short: "دقيقة",
+
+        // History View
+        academic_timeline: "السجل الأكاديمي",
+        timeline_subtitle: "تتبع نشاطك الأكاديمي وإنجازك هنا.",
+        timeline_empty: "لا يوجد سجل دراسي بعد. ابدأ جلستك الأولى لبناء سجلك الأكاديمي.",
+        current_badge: "الحالي",
+        pending_count: "متبقي",
+        col_day: "اليوم",
+        col_index: "المؤشر",
     }
 };

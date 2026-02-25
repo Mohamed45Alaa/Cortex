@@ -41,7 +41,8 @@ export default function AppGate() {
         }
     }, [authState.status, isHydrated, authState.user, healAccount]);
 
-    // AUTH REDIRECT
+    // AUTH REDIRECT - HANDLED BY NavigationGuard
+    /*
     useEffect(() => {
         // Allow time for auth to settle or redirect?
         // If strictly unauthenticated (GUEST) after loading, redirect.
@@ -50,6 +51,7 @@ export default function AppGate() {
             router.replace('/');
         }
     }, [isMounted, authState.status, router, openAuthModal]);
+    */
 
     // 2. Loading State (prevent flicker)
     if (!isMounted || (authState.status === 'LOADING' && !isHydrated) || isRecovering) {
@@ -74,8 +76,8 @@ export default function AppGate() {
 
     // Otherwise -> Show Main App (Login screen logic is handled inside MainApp flow or layout)
     return (
-        <SessionGate>
-            <MainApp />
-        </SessionGate>
+        // <SessionGate>
+        <MainApp />
+        // </SessionGate>
     );
 }

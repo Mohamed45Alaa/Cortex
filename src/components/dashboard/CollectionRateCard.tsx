@@ -45,6 +45,33 @@ export const CollectionRateCard = ({ lang }: { lang: 'en' | 'ar' }) => {
             subtext={rate >= 75 ? t.OPTIMAL_STATE : t.CALIBRATION_NEEDED}
             color="emerald"
             icon={Activity}
+            tooltipWidth="w-auto min-w-[340px]"
+            tooltipContent={
+                <>
+                    <p className="text-gray-200 font-bold text-sm mb-1">كفاءة الالتزام والتركيز</p>
+                    <p className="text-gray-400 text-xs leading-relaxed">
+                        يقيس هذا المؤشر متوسط نسبة الوقت الفعلي لمذاكرتك للمحاضرة من إجمالي وقت جلسة المذاكرة كلها.
+                    </p>
+                    <div className="flex flex-col gap-2 mt-2 bg-black/20 p-2.5 rounded-xl border border-white/5 text-[11px] whitespace-nowrap w-full">
+                        <div className="flex justify-between items-center w-full">
+                            <span className="text-emerald-400 font-bold shrink-0">معدل المذاكرة الفعالة</span>
+                            <span className="text-gray-400 text-right ml-3 text-[10.5px]">
+                                (المذاكرة + أدوات الترجمة والـ AI)
+                            </span>
+                        </div>
+                        <div className="w-full h-px bg-white/5" />
+                        <div className="flex justify-between items-center w-full">
+                            <span className="text-red-400 font-bold shrink-0">معدل التشتت</span>
+                            <span className="text-gray-400 text-right ml-3 text-[10.5px]">
+                                (معدل السرحان + الوقت الضائع)
+                            </span>
+                        </div>
+                    </div>
+                    <p className="text-indigo-300/80 text-[10px] mt-2 leading-relaxed text-center bg-indigo-500/10 p-1.5 rounded border border-indigo-500/20">
+                        كلما زادت نسبتك المئوية، زاد تركيزك في المحاضرة وزادت إنتاجيتك، وقل وقتك المهدر.
+                    </p>
+                </>
+            }
         />
     );
 };

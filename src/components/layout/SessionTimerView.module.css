@@ -23,6 +23,14 @@
     letter-spacing: 0.05em;
     text-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
     transition: font-size 0.3s ease;
+
+    /* [NEW] Layout for Badge */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+    padding-bottom: 1rem;
+    /* Space for border */
 }
 
 .controls {

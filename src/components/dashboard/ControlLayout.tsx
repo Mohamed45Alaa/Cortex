@@ -146,10 +146,10 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                         className="flex items-center gap-3 p-1 rounded-full hover:bg-white/5 transition-colors group"
                                     >
                                         <div className={styles.userAvatar}>
-                                            <span className={styles.avatarInitials}>{user?.name.charAt(0) || 'U'}</span>
+                                            <span className={styles.avatarInitials}>{(user?.fullName || user?.name || 'U').charAt(0).toUpperCase()}</span>
                                         </div>
                                         <div className={`flex flex-col items-start ${isMobile ? 'hidden' : 'block'}`}>
-                                            <span className={styles.userName}>{user?.name || 'Student'}</span>
+                                            <span className={styles.userName}>{user?.fullName || user?.name || 'Student'}</span>
                                             <span className={styles.userRole}>{user?.role || 'STUDENT'}</span>
                                         </div>
                                         {!isMobile && (
@@ -164,12 +164,12 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                             <div className="fixed inset-0 z-40" onClick={() => setIsUserMenuOpen(false)} />
 
                                             {/* Menu */}
-                                            <div className="absolute top-full right-0 mt-2 w-56 bg-[#0F172A] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                                            <div className="absolute top-full left-0 origin-top-left md:left-auto md:right-0 md:origin-top-right mt-2 w-56 bg-[#0F172A] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-100 max-md:shadow-[4px_4px_24px_rgba(0,0,0,0.5)]">
 
                                                 {/* Header (Mobile Only) */}
                                                 {isMobile && (
                                                     <div className="px-4 py-3 border-b border-white/5 bg-slate-900/50">
-                                                        <p className="text-sm font-semibold text-white">{user?.name}</p>
+                                                        <p className="text-sm font-semibold text-white">{user?.fullName || user?.name}</p>
                                                         <p className="text-xs text-slate-500 capitalize">{user?.role?.toLowerCase()}</p>
                                                     </div>
                                                 )}
@@ -228,9 +228,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                     {t.lang_toggle_text}
                                 </button>
                             )}
-                            <button onClick={onToggleTheme} className={styles.iconBtn}>
-                                {theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
-                            </button>
+                            {/* THEME TOGGLE REMOVED - FORCED DARK MODE */}
                         </div>
 
                         {/* MOBILE HAMBURGER (Hidden if Locked) */}
@@ -285,7 +283,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                 </span>
                                 <div className={styles.activeIndicator} style={{ background: '#fbbf24' }} />
                             </div>
-                            <div className="px-6 py-4 text-xs text-slate-500 leading-relaxed">
+                            <div className="px-6 py-4 text-xs text-slate-500 leading-relaxed text-center">
                                 {lang === 'en'
                                     ? "Navigation is disabled during active sessions to ensure deep focus."
                                     : "تم تعطيل التنقل أثناء الجلسة لضمان التركيز العميق."}
@@ -300,12 +298,7 @@ export const ControlLayout: React.FC<ControlLayoutProps> = ({
                                 active={currentView === 'DASHBOARD_HOME'}
                                 onClick={() => { onNavigate('DASHBOARD_HOME'); if (isMobile) setSidebarLocal(false); }}
                             />
-                            <NavMethod
-                                icon={<Hammer size={20} />}
-                                label={t.MY_TOOLS}
-                                active={currentView === 'DASHBOARD_TOOLS'}
-                                onClick={() => { onNavigate('DASHBOARD_TOOLS'); if (isMobile) setSidebarLocal(false); }}
-                            />
+
                             <NavMethod
                                 icon={<BookOpen size={20} />}
                                 label={t.sessions}

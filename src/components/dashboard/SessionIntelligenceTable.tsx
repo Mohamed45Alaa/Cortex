@@ -222,8 +222,8 @@ export const SessionIntelligenceTable: React.FC<SessionIntelligenceTableProps> =
                     <span>{t.col_duration}</span>
                     <span>{t.col_diff}</span>
                     <span>{t.col_delta}</span>
-                    <span>Grade</span>
-                    <span>Cost</span>
+                    <span>{t.col_grade}</span>
+                    <span>{t.col_cost}</span>
                     <span>{t.col_status}</span>
                     <span>{t.col_actions}</span>
                 </div>

@@ -202,6 +202,7 @@
     cursor: pointer;
     transition: all 0.2s;
     font-size: 1rem;
+    white-space: nowrap;
 }
 
 .gridBtn:hover,

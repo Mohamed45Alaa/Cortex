@@ -26,11 +26,11 @@ export const StudyModeSelector: React.FC<StudyModeSelectorProps> = ({
     onSelect,
     language = 'ar'
 }) => {
-    const recommendation = recommendStudyMode(difficulty);
+    const recommendation = recommendStudyMode(difficulty, language);
     const modes: LectureStudyMode[] = ['achievement', 'standard', 'importance'];
 
     return (
-        <div className="study-mode-selector" dir="rtl">
+        <div className="study-mode-selector" dir={language === 'ar' ? "rtl" : "ltr"}>
             {/* Recommendation Banner */}
             <div className="recommendation-banner mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                 <div className="flex items-center justify-center gap-2 text-blue-400 text-sm font-semibold mb-1">
@@ -70,8 +70,8 @@ export const StudyModeSelector: React.FC<StudyModeSelectorProps> = ({
                         >
                             {/* Recommended Badge */}
                             {isRecommended && (
-                                <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">
-                                    موصى به
+                                <div className={`absolute -top-2 ${language === 'ar' ? '-right-2' : '-left-2'} bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full`}>
+                                    {translations[language].recommended_badge}
                                 </div>
                             )}
 
@@ -82,7 +82,7 @@ export const StudyModeSelector: React.FC<StudyModeSelectorProps> = ({
 
                             {/* Label */}
                             <h3 className="text-lg font-bold text-white mb-2">
-                                {getModeLabel(mode)}
+                                {getModeLabel(mode, language)}
                             </h3>
 
                             {/* Multiplier */}
@@ -92,12 +92,12 @@ export const StudyModeSelector: React.FC<StudyModeSelectorProps> = ({
 
                             {/* Expected Time */}
                             <div className="text-sm text-slate-400 mb-3">
-                                الوقت المتوقع: <span className="text-white font-semibold">{expectedTime}</span> دقيقة
+                                {translations[language].lecture_expected_time_label} <span className="text-white font-semibold">{expectedTime}</span> {translations[language].minutes_short}
                             </div>
 
                             {/* Description */}
                             <p className="text-xs text-slate-400 leading-relaxed">
-                                {getModeDescription(mode)}
+                                {getModeDescription(mode, language)}
                             </p>
                             {/* Selection Indicator */}
                             {isSelected && (

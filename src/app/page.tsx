@@ -1,10 +1,18 @@
-import AppGate from '@/components/layout/AppGate';
-import { GlobalSystemProviders } from '@/components/layout/GlobalSystemProviders';
+"use client";
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function Page() {
+    const router = useRouter();
+
+    useEffect(() => {
+        router.replace('/dashboard');
+    }, [router]);
+
     return (
-        <GlobalSystemProviders>
-            <AppGate />
-        </GlobalSystemProviders>
+        <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
     );
 }

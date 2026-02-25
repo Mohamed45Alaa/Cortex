@@ -36,6 +36,7 @@ const sanitize = (value: number | undefined | null): number => {
     return Math.min(10, Math.max(0, safeValue));
 };
 
+
 // --- ADMIN STATE SLICE ---
 interface AdminSlice {
     students: UserProfile[];
@@ -116,6 +117,7 @@ interface SystemState extends AdminSlice {
 
     // 3. Operational Flow
     registerSession: (session: StudySession) => void;
+    markLectureComplete: (lectureId: string) => void;
     resetDailyLoad: () => void; // Called by checkNewDay() logic
 
     updateCapacity: (newCapacity: number) => void;
@@ -149,19 +151,34 @@ interface SystemState extends AdminSlice {
         highlightedLectureId: string | null; // Persistent Highlighting for incomplete lectures
         playerState: {
             fileUrl: string | null;
+            fileName?: string | null; // [NEW] Added for local file persistence across tools
             youtubeId: string | null;
             currentTime: number;
             duration: number;
             volume: number;
             isMuted: boolean;
             sourceType: 'local' | 'youtube';
+            isPlaying: boolean; // [NEW] Explicit Playing State
+            isKeepAlive: boolean; // [NEW] Headphone Saver state
+
+            // --- SUBTITLE SYSTEM (CC) ---
+            ccEnabled: boolean;
+            ccFontSize: string;
+            ccTextColor: string;
+            ccBgOpacity: number;
+            ccHasShadow: boolean;
+            ccPosition: { x: number; y: number } | null; // null = auto/default
         };
+        focusState: 'ACTIVE' | 'IDLE' | 'DISENGAGED'; // [NEW] Focus Engine Output
+        activeStudyTime: number; // [NEW] Accumulator based on Player/Tools
     };
     setMainTimerVisibility: (isVisible: boolean) => void;
     setActiveTool: (toolId: string | null) => void;
     setMediaPlaying: (isPlaying: boolean) => void;
     setHighlightLectureId: (id: string | null) => void;
     setPlayerState: (state: Partial<SystemState['uiState']['playerState']>) => void;
+    setFocusState: (state: 'ACTIVE' | 'IDLE' | 'DISENGAGED') => void; // [NEW]
+    incrementActiveStudyTime: (amount: number) => void; // [NEW]
 
     // Segment Logging
     logSegment: (type: SegmentType) => void;
@@ -238,13 +255,26 @@ export const useStore = create<SystemState>()(
                 highlightedLectureId: null,
                 playerState: {
                     fileUrl: null,
+                    fileName: null,
                     youtubeId: null,
                     currentTime: 0,
                     duration: 0,
                     volume: 1,
                     isMuted: false,
-                    sourceType: 'local'
-                }
+                    sourceType: 'local',
+                    isPlaying: false,
+                    isKeepAlive: false,
+
+                    // CC defaults
+                    ccEnabled: false,
+                    ccFontSize: '18px',
+                    ccTextColor: '#ffffff',
+                    ccBgOpacity: 0.7,
+                    ccHasShadow: true,
+                    ccPosition: null,
+                },
+                focusState: 'IDLE', // Default to Idle until engine starts
+                activeStudyTime: 0
             },
 
             setMainTimerVisibility: (isVisible) => set((state) => ({
@@ -268,6 +298,14 @@ export const useStore = create<SystemState>()(
                     ...state.uiState,
                     playerState: { ...state.uiState.playerState, ...updates }
                 }
+            })),
+
+            setFocusState: (focusState) => set((state) => ({
+                uiState: { ...state.uiState, focusState }
+            })),
+
+            incrementActiveStudyTime: (amount) => set((state) => ({
+                uiState: { ...state.uiState, activeStudyTime: state.uiState.activeStudyTime + amount }
             })),
 
             logSegment: (type: SegmentType) => set((state) => {
@@ -577,6 +615,77 @@ export const useStore = create<SystemState>()(
                 };
             }),
 
+            markLectureComplete: (lectureId: string) => set((state) => {
+                const lecture = state.lectures.find(l => l.id === lectureId);
+                if (!lecture) return {};
+
+                // 1. Create a dummy valid session
+                const dummySession: StudySession = {
+                    id: crypto.randomUUID(),
+                    lectureId: lecture.id,
+                    parentId: lecture.id,
+                    subjectId: lecture.subjectId,
+                    date: new Date().toISOString(),
+                    startTime: Date.now() - (lecture.duration * 60 * 1000), // simulate past
+                    endTime: Date.now(),
+                    status: 'COMPLETED',
+                    expectedDuration: lecture.duration,
+                    actualDuration: lecture.duration,
+                    cognitiveCost: 5, // Neutral baseline for manual complete
+                    performanceGrade: 'A', // For manual completion
+                    isValid: true,
+                    isValidForMetrics: false, // Don't skew deep metrics for manual clicks
+                    endedBy: 'USER',
+                    focusPerformance: 100,
+                    segments: [],
+                    collectionRate: 100
+                };
+
+                // 2. Update lecture
+                const updatedLectures = state.lectures.map(l =>
+                    l.id === lectureId ? {
+                        ...l,
+                        status: 'Mastered',
+                        lastRevision: new Date().toISOString()
+                    } : l
+                );
+
+                // 3. Persist
+                const user = state.authState.user;
+                if (user && state.authState.status === 'AUTHENTICATED') {
+                    // Using async inside set is fine for side-effects like Firestore
+                    import('@/core/services/FirestoreService').then(({ FirestoreService }) => {
+                        // Use a snapshot that just updates what's changed if needed,
+                        // but actually saveSessionWithSnapshot expects it
+                        const snapshot = {
+                            profile: state.profile,
+                            dailyLoad: state.dailyLoad
+                        };
+                        FirestoreService.saveSessionWithSnapshot(user.id, dummySession, snapshot);
+
+                        // We also need to save the lecture change
+                        import('@/core/services/firebase').then(({ getFirestoreInstance }) => {
+                            import('firebase/firestore').then(({ doc, setDoc, serverTimestamp }) => {
+                                const db = getFirestoreInstance();
+                                if (db) {
+                                    const lectureRef = doc(db, 'users', user.id, 'subjects', lecture.subjectId, 'lectures', lecture.id);
+                                    setDoc(lectureRef, {
+                                        status: 'Mastered',
+                                        lastRevision: serverTimestamp()
+                                    }, { merge: true }).catch(() => { });
+                                }
+                            });
+                        });
+                    });
+                }
+
+                return {
+                    sessions: [...state.sessions, dummySession],
+                    lectures: updatedLectures as Lecture[]
+                };
+            }),
+
+
             resetDailyLoad: () => set((state) => ({
                 dailyLoad: {
                     date: new Date().toISOString().split('T')[0],
@@ -756,7 +865,27 @@ export const useStore = create<SystemState>()(
                 // 1-Minute Rule: Discard phantom sessions (< 1 min)
                 if (actualMinutes < 1) {
                     console.warn("[Store] ⚠️ Session duration is 0 min. Discarding phantom session.");
+                    const sessionToDiscard = state.activeSession;
                     set({ activeSession: null });
+
+                    // Clean up orphaned session from Firestore if it was buffered
+                    const user = state.authState.user;
+                    if (user && sessionToDiscard && sessionToDiscard.id) {
+                        try {
+                            const db = import('@/core/services/firebase').then(m => m.getFirestoreInstance());
+                            import('firebase/firestore').then(({ deleteDoc, doc }) => {
+                                db.then(database => {
+                                    if (database) {
+                                        const sessionRef = doc(database, 'users', user.id, 'subjects', sessionToDiscard.subjectId, 'lectures', sessionToDiscard.lectureId, 'sessions', sessionToDiscard.id);
+                                        deleteDoc(sessionRef).catch(e => console.error("Failed to delete phantom session", e));
+                                    }
+                                });
+                            });
+                        } catch (e) {
+                            console.error("Failed to delete phantom session", e);
+                        }
+                    }
+
                     return null;
                 }
 
@@ -842,6 +971,15 @@ export const useStore = create<SystemState>()(
                     return l;
                 });
 
+                // Calculate fresh Daily Load & Status
+                const nextTotalDailyCost = isValidForMetrics
+                    ? state.dailyLoad.totalCognitiveCost + evaluation.cognitiveLoadIndex
+                    : state.dailyLoad.totalCognitiveCost;
+
+                let nextDailyStatus: DailyLoad['status'] = 'Safe';
+                if (nextTotalDailyCost > 10) nextDailyStatus = 'Risk';
+                else if (nextTotalDailyCost > 8) nextDailyStatus = 'Warning';
+
                 // 6. FIRESTORE SYNC (The Missing Piece)
                 const user = state.authState.user;
                 if (state.authState.status === 'AUTHENTICATED' && user) {
@@ -860,7 +998,8 @@ export const useStore = create<SystemState>()(
 
                     const nextDailyLoad = {
                         ...state.dailyLoad,
-                        totalCognitiveCost: isValidForMetrics ? state.dailyLoad.totalCognitiveCost + evaluation.cognitiveLoadIndex : state.dailyLoad.totalCognitiveCost,
+                        totalCognitiveCost: nextTotalDailyCost,
+                        status: nextDailyStatus
                     };
 
                     const snapshot = {
@@ -890,7 +1029,8 @@ export const useStore = create<SystemState>()(
                     activeSession: null,
                     dailyLoad: {
                         ...state.dailyLoad,
-                        totalCognitiveCost: isValidForMetrics ? state.dailyLoad.totalCognitiveCost + evaluation.cognitiveLoadIndex : state.dailyLoad.totalCognitiveCost
+                        totalCognitiveCost: nextTotalDailyCost,
+                        status: nextDailyStatus
                     },
                     profile: {
                         ...state.profile,
@@ -905,10 +1045,69 @@ export const useStore = create<SystemState>()(
                 return newSession;
             },
 
-            deleteLecture: (lectureId) => set((state) => ({
-                lectures: state.lectures.filter(l => l.id !== lectureId),
-                sessions: state.sessions.filter(s => s.lectureId !== lectureId)
-            })),
+            deleteLecture: (lectureId) => set((state) => {
+                // 1. FIND CONTEXT
+                const deletedLecture = state.lectures.find(l => l.id === lectureId);
+                if (!deletedLecture) return {}; // Safety
+
+                // 2. FILTER DATA (Local State)
+                const remainingLectures = state.lectures.filter(l => l.id !== lectureId);
+                const remainingSessions = state.sessions.filter(s => s.lectureId !== lectureId);
+
+                // 3. RECALCULATE METRICS (Profile & DailyLoad)
+                // A. Profile Metrics
+                const validSessions = remainingSessions.filter(s => s.isValidForMetrics);
+                const nextTotalSessions = validSessions.length;
+
+                const nextLearningPhase = (nextTotalSessions >= 3 ? 'ADAPTIVE' :
+                    (nextTotalSessions >= 1 ? 'NOVICE' : 'INIT')) as 'INIT' | 'NOVICE' | 'ADAPTIVE';
+
+                const totalIndex = validSessions.reduce((acc, s) => acc + (s.cognitiveCost || 0), 0);
+                const nextCumulativeIndex = validSessions.length > 0
+                    ? parseFloat((totalIndex / validSessions.length).toFixed(2))
+                    : 0;
+
+                const nextProfile = {
+                    ...state.profile,
+                    totalSessions: nextTotalSessions,
+                    learningPhase: nextLearningPhase,
+                    cumulativeIndex: nextCumulativeIndex,
+                };
+
+                // B. Daily Load (Today)
+                const todayStr = new Date().toISOString().split('T')[0];
+                const todaySessions = remainingSessions.filter(s => s.date && s.date.startsWith(todayStr));
+                const todayCost = todaySessions.reduce((acc, s) => acc + (s.cognitiveCost || 0), 0);
+
+                let nextStatus: DailyLoad['status'] = 'Safe';
+                if (todayCost > 10) nextStatus = 'Risk';
+                else if (todayCost > 8) nextStatus = 'Warning';
+
+                const nextDailyLoad = {
+                    ...state.dailyLoad,
+                    totalCognitiveCost: todayCost,
+                    status: nextStatus
+                };
+
+                // 4. FIRESTORE SYNC
+                const user = state.authState.user;
+                if (state.authState.status === 'AUTHENTICATED' && user && deletedLecture.subjectId) {
+                    // Prepare Snapshot
+                    const snapshot = {
+                        profile: nextProfile,
+                        dailyLoad: nextDailyLoad
+                    };
+
+                    FirestoreService.deleteLectureRecursive(user.id, deletedLecture.subjectId, lectureId, snapshot);
+                }
+
+                return {
+                    lectures: remainingLectures,
+                    sessions: remainingSessions,
+                    profile: nextProfile,
+                    dailyLoad: nextDailyLoad
+                };
+            }),
 
             clearActiveSession: () => set(() => ({ activeSession: null })),
 
@@ -1239,13 +1438,24 @@ export const useStore = create<SystemState>()(
                         }));
                     });
 
-                    // B. RTDB LISTENER REMOVED (Legacy Kill Switch)
-                    // We no longer listen to activeSession != null to kill local session.
-                    // Presence is now decoupled.
+                    // B. FIRESTORE LISTENER (Profile Sync)
+                    // If Admin changes the student's profile, it updates here instantly.
+                    const unsubscribeProfile = FirestoreService.subscribeToProfile(uid, (profile: any) => {
+                        console.log("[Store] ⚡ Profile Updated (Real-time Sync)");
+                        set((currentState) => {
+                            // Merge into authState.user
+                            if (currentState.authState.user) {
+                                const mergedUser = { ...currentState.authState.user, ...profile };
+                                return { authState: { ...currentState.authState, user: mergedUser } };
+                            }
+                            return currentState;
+                        });
+                    });
 
                     // Combined Cleanup
                     const cleanup = () => {
                         unsubscribeFirestore();
+                        unsubscribeProfile();
                     };
 
                     return { unsubscribeSnapshot: cleanup };
@@ -1303,7 +1513,16 @@ export const useStore = create<SystemState>()(
                 isServerConfirmedSession: state.isServerConfirmedSession,
                 creationWindowUntil: state.creationWindowUntil,
 
-                // EXPLICITLY OMIT: subjects, lectures, sessions, profile, dailyLoad
+                // 5. UI STATE (Excluding ephemeral data)
+                uiState: {
+                    ...state.uiState,
+                    playerState: {
+                        ...state.uiState.playerState,
+                        fileUrl: null, // Never persist blob URLs to localStorage
+                        fileName: null // Nor the file name, they break on refresh
+                        // Note: cc options natively persist via ...state.uiState.playerState
+                    }
+                }
                 // This ensures F5 reload triggers a fresh fetch/listener via RootGate,
                 // and prevents cross-user contamination in localStorage.
             })

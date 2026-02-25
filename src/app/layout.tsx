@@ -1,6 +1,7 @@
 'use client';
 
 import './globals.css';
+import { NavigationGuard } from '@/components/auth/NavigationGuard';
 
 export default function RootLayout({
     children,
@@ -12,7 +13,9 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className="antialiased overflow-hidden bg-[#020617] text-white">
-                {children}
+                <NavigationGuard>
+                    {children}
+                </NavigationGuard>
             </body>
         </html>
     );

@@ -282,6 +282,45 @@ export const FirestoreService = {
         }
     },
 
+    /**
+     * RECURSIVE LECTURE DELETE: Lecture + Sessions + Snapshot Update
+     */
+    deleteLectureRecursive: async (uid: string, subjectId: string, lectureId: string, snapshot: any) => {
+        try {
+            const db = getFirestoreInstance();
+            if (!db) return;
+
+            console.log("[Firestore] Starting Recursive Delete for Lecture:", lectureId);
+            const batch = writeBatch(db);
+
+            // 1. Delete Lecture Document
+            const lectureRef = doc(db, 'users', uid, 'subjects', subjectId, 'lectures', lectureId);
+            batch.delete(lectureRef);
+
+            // 2. Find and Delete All Sessions for this Lecture
+            const sessionsColl = collection(db, 'users', uid, 'subjects', subjectId, 'lectures', lectureId, 'sessions');
+            const sessionsSnap = await getDocs(sessionsColl);
+
+            sessionsSnap.forEach(sessDoc => {
+                batch.delete(sessDoc.ref);
+            });
+
+            // 3. Update Snapshot (Beacon)
+            const snapshotRef = doc(db, 'users', uid, 'stateSnapshot', 'main');
+            batch.set(snapshotRef, {
+                ...snapshot,
+                lastUpdatedAt: serverTimestamp(),
+                snapshotVersion: 1
+            }, { merge: true });
+
+            await batch.commit();
+            console.log("[Firestore] Recursive Lecture Delete Complete");
+
+        } catch (error) {
+            console.warn("[Firestore] Failed to delete lecture recursively:", error);
+        }
+    },
+
     saveStateSnapshot: async (uid: string, snapshot: any) => {
         try {
             const db = getFirestoreInstance();
@@ -391,6 +430,15 @@ export const FirestoreService = {
 
                     sessionsSnap.forEach(sessDoc => {
                         const sessData: any = sessDoc.data();
+
+                        // [PHANTOM CLEANUP] Skip loading phantom sessions (no actual duration or < 1)
+                        if (sessData.actualDuration === undefined || sessData.actualDuration === null || sessData.actualDuration < 1) {
+                            console.warn(`[Firestore] Skipping phantom session ${sessDoc.id} due to invalid actualDuration.`);
+                            // Optionally async delete it to clean up DB
+                            deleteDoc(sessDoc.ref).catch(() => { });
+                            return; // skip adding to sessions array
+                        }
+
                         // NORMALIZE SESSION
                         sessions.push({
                             ...sessData,
@@ -431,6 +479,24 @@ export const FirestoreService = {
             console.warn("[Firestore] Failed to load deep data:", error);
             return null;
         }
+    },
+
+    /**
+     * Real-time Listener for Identity Profile
+     * Returns an unsubscribe function.
+     */
+    subscribeToProfile: (uid: string, onUpdate: (profile: any) => void) => {
+        const db = getFirestoreInstance();
+        if (!db) return () => { };
+
+        const profileRef = doc(db, 'users', uid, 'profile', 'main');
+
+        console.log("[Firestore] Attaching real-time listener to PROFILE:", uid);
+        return onSnapshot(profileRef, (docSnap) => {
+            if (docSnap.exists()) {
+                onUpdate(docSnap.data());
+            }
+        });
     },
 
     /**

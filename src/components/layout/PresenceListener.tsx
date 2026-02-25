@@ -43,9 +43,8 @@ export const PresenceListener = () => {
             // DECISION MATRIX
             let interval = 90000; // Default: Browsing (90s)
 
-            // CASE 1: Active Session (High Priority)
             if (activeSession) {
-                interval = 25000; // 25s
+                interval = 5000; // 5s for active session (was 25s)
             }
             // CASE 2: Idle (Stop Heartbeat)
             else if (timeSinceInteraction > IDLE_THRESHOLD) {
@@ -59,7 +58,10 @@ export const PresenceListener = () => {
 
             // Execute Heartbeat
             heartbeatTimer = setTimeout(() => {
-                RealtimePresenceService.heartbeat(user.id); // Payload optimized in Service
+                // Write state directly to RTDB (instant) then send heartbeat via API
+                const currentRtdbState = document.hidden ? 'background' : 'online';
+                RealtimePresenceService.updateStateImmediate(user.id, currentRtdbState);
+                RealtimePresenceService.heartbeat(user.id, { lastInteraction, activeSessionId: activeSession?.id });
                 scheduleHeartbeat(); // Recurse
             }, interval);
         };
@@ -78,14 +80,34 @@ export const PresenceListener = () => {
             }
         };
 
-        // Events to track
-        const events = ['mousedown', 'keydown', 'scroll', 'visibilitychange'];
+        // Events to track (interaction tracking only - NOT visibility)
+        const generalEvents = ['mousedown', 'keydown', 'scroll'];
         const throttledInteraction = () => {
             // Simple throttle to avoid spamming Date.now()
             if (Date.now() - lastInteraction > 1000) handleInteraction();
         };
 
-        events.forEach(e => window.addEventListener(e, throttledInteraction));
+        generalEvents.forEach(e => window.addEventListener(e, throttledInteraction));
+
+        // --- IMMEDIATE VISIBILITY CHANGE (New: separate from interaction loop) ---
+        // Fires instantly when user switches tabs — does NOT wait for next heartbeat
+        const handleVisibilityChange = () => {
+            const newState = document.hidden ? 'background' : 'online';
+            // DIRECT RTDB write — bypasses HTTP API for instant effect
+            RealtimePresenceService.updateStateImmediate(user.id, newState);
+            // Also send a full heartbeat (async, non-blocking)
+            RealtimePresenceService.heartbeat(user.id, {
+                lastInteraction: Date.now(),
+                activeSessionId: activeSession?.id
+            });
+            // Restart heartbeat loop with fresh interval
+            handleInteraction();
+            scheduleHeartbeat();
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // Send initial state immediately on mount (direct RTDB write)
+        RealtimePresenceService.updateStateImmediate(user.id, document.hidden ? 'background' : 'online');
 
         // Start Loop
         scheduleHeartbeat();
@@ -95,7 +117,8 @@ export const PresenceListener = () => {
         window.addEventListener('beforeunload', handleUnload);
 
         return () => {
-            events.forEach(e => window.removeEventListener(e, throttledInteraction));
+            generalEvents.forEach((e: string) => window.removeEventListener(e, throttledInteraction));
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('beforeunload', handleUnload);
             if (heartbeatTimer) clearTimeout(heartbeatTimer);
         };
@@ -121,63 +144,70 @@ export const PresenceListener = () => {
 
     }, [user?.id, activeSession?.lectureId, activeSession?.subjectId]);
 
-    // --- 3. FOCUS DETECTION SYSTEM (Non-Invasive) ---
-    const { uiState, autoPauseSession, autoResumeSession } = useStore();
-    const GRACE_PERIOD_MS = 30000; // 30 Seconds
-    const graceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // --- 3. FOCUS DETECTION SYSTEM (Authoritative Engine) ---
+    const { uiState, setFocusState, incrementActiveStudyTime } = useStore();
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const lastInputTime = useRef<number>(Date.now());
 
     useEffect(() => {
-        if (!activeSession) return; // Only track during session
-
-        const handleStateChange = () => {
-            const isHidden = document.hidden;
-            const hasActiveTool = !!uiState.activeToolId;
-
-            // CLEAR EXISTING TIMER ON ANY STATE CHANGE
-            if (graceTimeoutRef.current) {
-                clearTimeout(graceTimeoutRef.current);
-                graceTimeoutRef.current = null;
-            }
-
-            if (isHidden) {
-                // USER LEFT TAB
-                if (hasActiveTool) {
-                    // SAFE: Tool is open, assume intent. Do nothing.
-                    console.log("[Focus] Backgrounded but Tool Open (Safe)");
-                } else {
-                    // RISK: No tool. Start Grace Period.
-                    console.log(`[Focus] Backgrounded. Grace period starting (${GRACE_PERIOD_MS}ms)...`);
-                    graceTimeoutRef.current = setTimeout(() => {
-                        console.log("[Focus] Grace Period Exceeded -> Auto Pause");
-                        autoPauseSession();
-                    }, GRACE_PERIOD_MS);
-                }
-            } else {
-                // USER RETURNED
-                console.log("[Focus] User Returned -> Attempting Resume");
-                autoResumeSession(); // Will only resume if isAutoPaused is true
-            }
+        // Track Input for Idle/Disengaged Calculation (Secondary Signal)
+        const handleInput = () => {
+            lastInputTime.current = Date.now();
         };
 
-        // Listeners
-        document.addEventListener('visibilitychange', handleStateChange);
-        window.addEventListener('blur', () => {
-            // Optional: Treat blur same as hidden? 
-            // Often blur happens when clicking iframe or second monitor. 
-            // Let's stick to visibilityState for now as it's more robust for "Tab Switching".
-            // If user just clicks a different window on same screen, visibility might stay 'visible'.
-            // Strict mode: Treat blur as hidden too?
-            // "The system must NOT attempt to detect external websites... Instead, infer intent..."
-            // Let's rely on visibilitychange for Tab Switching. Blur is too noisy.
-        });
-        window.addEventListener('focus', handleStateChange);
+        const events = ['mousemove', 'keydown', 'mousedown', 'scroll', 'touchstart'];
+        events.forEach(e => window.addEventListener(e, handleInput, { passive: true }));
 
         return () => {
-            document.removeEventListener('visibilitychange', handleStateChange);
-            window.removeEventListener('focus', handleStateChange);
-            if (graceTimeoutRef.current) clearTimeout(graceTimeoutRef.current);
+            events.forEach(e => window.removeEventListener(e, handleInput));
         };
-    }, [activeSession?.isActive, uiState.activeToolId]);
+    }, []);
+
+    useEffect(() => {
+        if (!activeSession || !activeSession.isActive) return;
+
+        // THE ENGINE LOOP (100ms)
+        intervalRef.current = setInterval(() => {
+            // 1. Gather Signals
+            const isMediaPlaying = uiState.playerState.isPlaying;
+            const isToolActive = !!uiState.activeToolId; // AI Tools / Translate open = active
+
+            // 2. Determine State
+            import('@/core/engines/FocusEngine').then(({ FocusEngine }) => {
+                const newState = FocusEngine.determineState(
+                    isMediaPlaying,
+                    isToolActive,
+                    lastInputTime.current
+                );
+
+                // 3. Dispatch Updates
+                // Only dispatch if changed? Or always to ensure freshness?
+                // Dispatching every 100ms to store might be heavy if using strict equality checks.
+                // But simplified: Store handles diffing usually.
+                // Optimization: Check local state before dispatching?
+                // Let's trust Zustand's diffing for now or do a quick check? Used to be safe.
+                if (uiState.focusState !== newState) {
+                    setFocusState(newState);
+                }
+
+                // 4. Accumulate Active Time
+                // Only if ACTIVE (Green)
+                if (newState === 'ACTIVE') {
+                    // 100ms increment
+                    incrementActiveStudyTime(100);
+                    // Note: This is discrete accumulation. 
+                    // Player time might be better source of truth for "Video Time", 
+                    // but "Active Study Time" includes Tool usage too.
+                    // So we must accumulate wall-clock time WHILE in Active State.
+                }
+            });
+
+        }, 100);
+
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, [activeSession?.isActive, uiState.playerState.isPlaying, uiState.activeToolId, uiState.focusState]);
 
     return null;
 };
