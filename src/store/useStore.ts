@@ -892,28 +892,51 @@ export const useStore = create<SystemState>()(
                 const finalDuration = Math.max(1, actualMinutes);
 
                 // 3. Compute Collection Rate (FORENSIC)
-                const totalSegmentDuration = segments.reduce((acc, s) => acc + s.duration, 0);
-                const productiveDuration = segments
+                // NOTE: collectionRate is computed AFTER finalSegments is built (see step 5)
+                // so that synthetic segments for restored sessions are included.
+                // Placeholder assigned here, real value computed below.
+                let collectionRate = 0;
+
+                // 4. Fetch Context (Soft Fallback — don't abort if lecture missing)
+                // Restored sessions may load before the lectures list is populated.
+                // Use session-stored values as fallback to prevent silent null returns.
+                const lecture = state.lectures.find(l => l.id === state.activeSession?.lectureId);
+                const expectedDuration = state.activeSession.expectedDuration
+                    || (lecture?.duration != null ? lecture.duration * 2 : null)
+                    || 60; // fallback: 60 minutes
+                const lectureDifficulty = lecture?.relativeDifficulty || 5;
+                const lectureDuration = lecture?.duration || Math.floor(expectedDuration / 2);
+
+                // 5. Cognitive Engine (MASTER PROMPT LOGIC)
+                // If segments are empty (restored session — app was closed during session),
+                // build a synthetic DISENGAGED segment covering the full duration.
+                // This ensures SessionAnalysisView shows real time instead of all zeros.
+                let finalSegments = segments;
+                if (finalSegments.length === 0 && netDuration > 0) {
+                    finalSegments = [{
+                        type: 'DISENGAGED' as const,
+                        startTime: state.activeSession.startTime,
+                        endTime: now,
+                        duration: netDuration,
+                        // Note: label omitted — not in SessionSegment type
+                    }];
+                    console.log('[STORE] Empty segments: injected synthetic DISENGAGED segment for restored session');
+                }
+
+                // Compute Collection Rate AFTER finalSegments is built
+                const totalSegmentDuration = finalSegments.reduce((acc, s) => acc + s.duration, 0);
+                const productiveDuration = finalSegments
                     .filter(s => s.type === 'ACTIVE' || s.type === 'TOOL')
                     .reduce((acc, s) => acc + s.duration, 0);
-
-                const collectionRate = totalSegmentDuration > 0
+                collectionRate = totalSegmentDuration > 0
                     ? Math.round((productiveDuration / totalSegmentDuration) * 100)
                     : 0;
 
-                // 4. Fetch Context
-                const lecture = state.lectures.find(l => l.id === state.activeSession?.lectureId);
-                if (!lecture) {
-                    set({ activeSession: null });
-                    return null;
-                }
-
-                // 5. Cognitive Engine (MASTER PROMPT LOGIC)
                 const evaluation = CognitiveLoadEngine.evaluateSession(
                     finalDuration,
-                    state.activeSession.expectedDuration || (lecture.duration * 2),
-                    lecture.duration,
-                    lecture.relativeDifficulty
+                    expectedDuration,
+                    lectureDuration,
+                    lectureDifficulty
                 );
 
                 const isValidForMetrics = !penalty && evaluation.isValid;
@@ -927,15 +950,15 @@ export const useStore = create<SystemState>()(
                 // 6. Construct Final Record
                 const newSession: StudySession = {
                     id: crypto.randomUUID(),
-                    lectureId: lecture.id,
-                    parentId: lecture.id,
-                    subjectId: lecture.subjectId,
+                    lectureId: lecture?.id || state.activeSession.lectureId,
+                    parentId: lecture?.id || state.activeSession.lectureId,
+                    subjectId: lecture?.subjectId || state.activeSession.subjectId,
                     date: new Date().toISOString(),
                     startTime: state.activeSession.startTime,
                     endTime: now,
                     status: penalty ? 'INTERRUPTED' : (evaluation.isValid ? 'COMPLETED' : 'INTERRUPTED'),
 
-                    expectedDuration: state.activeSession.expectedDuration || (lecture.duration * 2),
+                    expectedDuration: expectedDuration,
                     actualDuration: finalDuration,
                     cognitiveCost: evaluation.cognitiveLoadIndex,
                     performanceGrade: evaluation.performanceGrade,
@@ -944,8 +967,8 @@ export const useStore = create<SystemState>()(
                     endedBy: penalty ? 'SYSTEM' : 'USER',
                     focusPerformance: penalty ? 0 : 100,
 
-                    // NEW FORENSIC DATA
-                    segments: segments,
+                    // FORENSIC DATA (finalSegments includes synthetic if restored)
+                    segments: finalSegments,
                     collectionRate: collectionRate
                 };
 
@@ -958,7 +981,7 @@ export const useStore = create<SystemState>()(
 
                 // 8. UPDATE LECTURE STATE (Persistence of Result)
                 const updatedLectures = state.lectures.map(l => {
-                    if (l.id === lecture.id) {
+                    if (lecture && l.id === lecture.id) {
                         return {
                             ...l,
                             status: 'Mastered',

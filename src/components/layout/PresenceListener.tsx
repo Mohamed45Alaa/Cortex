@@ -3,16 +3,50 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '@/store/useStore';
 import { RealtimePresenceService } from '@/core/services/RealtimePresenceService';
+import { getDatabaseInstance } from '@/core/services/firebase';
+import { ref, get } from 'firebase/database';
 import { usePathname } from 'next/navigation';
 
 export const PresenceListener = () => {
-    const { authState, activeSession } = useStore();
+    const { authState, activeSession, restoreSessionFromRTDB } = useStore();
     const user = authState.user;
     const pathname = usePathname();
 
-    // --- 0. DEV ENVIRONMENT GUARD ---
-    // In production, we might want to disable this check or make it robust.
-    // For now, we allow localhost to write to RTDB (assuming correct config).
+    // --- 0. SESSION RESTORE ON APP BOOT ──────────────────────────────────────
+    // When user opens/reopens the app, check /activeSessions/{uid} in RTDB.
+    // If a session exists there, restore it with the ORIGINAL startedAt so the
+    // timer continues from where it was — not from zero.
+    // Guard: only restore if store doesn't already have an active session.
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const db = getDatabaseInstance();
+        if (!db) return;
+
+        const activeSessionRef = ref(db, `activeSessions/${user.id}`);
+        get(activeSessionRef).then((snap) => {
+            const sessionData = snap.val();
+
+            if (!sessionData?.startedAt || !sessionData?.lectureId) {
+                console.log('[Presence] Boot: no active session in RTDB to restore');
+                return;
+            }
+
+            // Check if store already has this session running (hot reload / already restored)
+            const currentSession = useStore.getState().activeSession;
+            if (currentSession?.id === sessionData.sessionId) {
+                console.log('[Presence] Boot: session already in store, skipping restore');
+                return;
+            }
+
+            // ✅ Restore: timer will resume from session.startedAt
+            console.log('[Presence] Boot: RESTORING SESSION from /activeSessions →', sessionData.sessionId);
+            restoreSessionFromRTDB(sessionData);
+        }).catch(err => {
+            console.warn('[Presence] Boot: failed to check /activeSessions:', err);
+        });
+
+    }, [user?.id]); // Run ONCE when user authenticates
 
     // --- 1. PRESENCE LAYER (Adaptive Heartbeat) ---
     useEffect(() => {
