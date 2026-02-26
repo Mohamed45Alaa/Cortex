@@ -34,6 +34,11 @@ export const PremiumVideoPlayer: React.FC<PremiumVideoPlayerProps> = ({ isOpen, 
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [youtubeId, setYoutubeId] = useState<string | null>(null);
 
+    // ── RECORDER INTEGRATION: pending lecture from مسجل الصوت picker ───────────
+    // When student picks a lecture in the RECORDER overlay, the lectureId+title
+    // are stored in sessionStorage. PremiumVideoPlayer reads it on mount.
+    const [pendingLecture, setPendingLecture] = useState<{ lectureId: string; lectureTitle: string } | null>(null);
+
 
     // Player State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -148,6 +153,18 @@ export const PremiumVideoPlayer: React.FC<PremiumVideoPlayerProps> = ({ isOpen, 
             lastTimeRef.current = savedState.currentTime; // Crucial for auto-seek
         }
     }, []); // Run once on mount
+
+    // Read pending lecture from sessionStorage (set by RECORDER overlay)
+    useEffect(() => {
+        const raw = sessionStorage.getItem('pendingPlayerLecture');
+        if (raw) {
+            try {
+                const parsed = JSON.parse(raw);
+                setPendingLecture(parsed);
+                sessionStorage.removeItem('pendingPlayerLecture');
+            } catch { }
+        }
+    }, []);
 
     // Format ETA Helper
     const formatEta = (seconds: number | null | undefined) => {
@@ -873,11 +890,29 @@ export const PremiumVideoPlayer: React.FC<PremiumVideoPlayerProps> = ({ isOpen, 
 
                     {!fileUrl && (
                         <>
+                            {/* PENDING LECTURE BANNER — set by RECORDER overlay */}
+                            {pendingLecture && (
+                                <div className="mb-3 flex items-center gap-3 bg-rose-950/60 border border-rose-500/30 rounded-xl px-4 py-3 text-right" dir="rtl">
+                                    <Mic2 size={18} className="shrink-0 text-rose-400" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs text-rose-300 font-medium">التسجيل المختار</p>
+                                        <p className="text-sm text-white font-semibold truncate">{pendingLecture.lectureTitle}</p>
+                                        <p className="text-xs text-slate-400 mt-0.5">اختار ملف الصوت أو الفيديو بتاعته من الأسفل</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setPendingLecture(null)}
+                                        className="shrink-0 text-slate-500 hover:text-slate-300"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            )}
                             {/* Upload Card */}
                             <button
                                 onClick={() => setShowUploadMenu(true)}
                                 className="relative flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-700/50 rounded-xl bg-slate-800/10 hover:bg-slate-800/30 active:bg-slate-800/50 transition-colors min-h-[300px] w-full cursor-pointer"
                             >
+
                                 <div className="flex flex-col items-center">
                                     <div className="p-4 rounded-full bg-slate-800 mb-4">
                                         <Upload className="w-8 h-8 text-slate-400" />
