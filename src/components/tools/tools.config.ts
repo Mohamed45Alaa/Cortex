@@ -1,4 +1,4 @@
-import { LucideIcon, Search, Languages, Bot, PlayCircle, Mic } from 'lucide-react';
+import { LucideIcon, Search, Languages, Bot, PlayCircle } from 'lucide-react';
 
 export interface ToolConfig {
     id: string;
@@ -8,7 +8,7 @@ export interface ToolConfig {
     icon: LucideIcon; // Fallback icon
     customIcon?: string; // Path to custom asset
     color: string;
-    componentKey: 'LAUNCHER' | 'PLAYER' | 'RECORDER';
+    componentKey: 'LAUNCHER' | 'PLAYER';
     actionLabel: string;
     url?: string; // External URL for launcher
 }
@@ -59,15 +59,5 @@ export const TOOLS_CONFIG: ToolConfig[] = [
         color: 'text-rose-400',
         componentKey: 'PLAYER',
         actionLabel: 'Open Player'
-    },
-    {
-        id: 'recorder',
-        title: 'مسجل الصوت',
-        subtitle: 'مسجل الصوت الأصلي للفون',
-        description: 'اختر المحاضرة اللي عندك تسجيل عليها، وهتتفتح تلقائي في المشغّل المحلي.',
-        icon: Mic,
-        color: 'text-rose-400',
-        componentKey: 'RECORDER',
-        actionLabel: 'فتح المسجل'
     }
 ];

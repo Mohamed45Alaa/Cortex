@@ -1,120 +1,17 @@
-'use client';
-import React, { useState } from 'react';
+import React from 'react';
 import { ToolConfig } from './tools.config';
 import { LocalMediaPlayer } from './LocalMediaPlayer';
-import { X, ExternalLink, Timer, Lock, Mic, BookOpen, ChevronRight } from 'lucide-react';
+import { X, ExternalLink, Timer, Lock } from 'lucide-react';
 import Image from 'next/image';
-import { useStore } from '@/store/useStore';
 
 interface ToolsOverlayProps {
     tool: ToolConfig;
     onClose: () => void;
 }
 
-// ─── RECORDER: Lecture Picker ─────────────────────────────────────────────────
-// Shown when user opens the "مسجل الصوت" tool.
-// Student picks a lecture → ToolsOverlay switches to PLAYER, with that lecture's
-// name pre-filled in the player header for context.
-const RecorderLecturePicker: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const { lectures, subjects, setActiveTool } = useStore();
-    const [search, setSearch] = useState('');
-    const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
-
-    // Build flat lecture list enriched with subject name
-    const enriched = lectures.map(l => ({
-        ...l,
-        subjectName: subjects.find(s => s.id === l.subjectId)?.name || l.subjectId,
-    }));
-
-    // Filter by subject tab + search text
-    const filtered = enriched.filter(l => {
-        const matchSub = !selectedSubjectId || l.subjectId === selectedSubjectId;
-        const matchSearch = !search || l.title.toLowerCase().includes(search.toLowerCase());
-        return matchSub && matchSearch;
-    });
-
-    const handlePickLecture = (lectureId: string, lectureTitle: string) => {
-        // Store the pending lecture in sessionStorage so LocalMediaPlayer can read it
-        sessionStorage.setItem('pendingPlayerLecture', JSON.stringify({ lectureId, lectureTitle }));
-        // Switch overlay to player
-        setActiveTool('player');
-    };
-
-    return (
-        <div className="flex flex-col h-full min-h-[400px]" dir="rtl">
-            {/* Instruction */}
-            <div className="px-6 pt-5 pb-3">
-                <p className="text-slate-300 text-sm leading-relaxed">
-                    اختر المحاضرة اللي عندك تسجيل عليها — هيتفتح المشغّل المحلي تلقائيًا عشان تختار الملف.
-                </p>
-            </div>
-
-            {/* Search */}
-            <div className="px-6 pb-3">
-                <input
-                    type="text"
-                    placeholder="ابحث عن محاضرة..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
-                />
-            </div>
-
-            {/* Subject tabs */}
-            {subjects.length > 0 && (
-                <div className="px-6 pb-3 flex gap-2 overflow-x-auto scrollbar-none">
-                    <button
-                        onClick={() => setSelectedSubjectId(null)}
-                        className={`shrink-0 text-xs px-3 py-1.5 rounded-full border transition-colors ${!selectedSubjectId ? 'bg-rose-600 border-rose-500 text-white' : 'border-white/10 text-slate-400 hover:text-white'}`}
-                    >
-                        الكل
-                    </button>
-                    {subjects.map(s => (
-                        <button
-                            key={s.id}
-                            onClick={() => setSelectedSubjectId(prev => prev === s.id ? null : s.id)}
-                            className={`shrink-0 text-xs px-3 py-1.5 rounded-full border transition-colors ${selectedSubjectId === s.id ? 'bg-rose-600 border-rose-500 text-white' : 'border-white/10 text-slate-400 hover:text-white'}`}
-                        >
-                            {s.name}
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            {/* Lecture list */}
-            <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
-                {filtered.length === 0 && (
-                    <div className="text-center text-slate-500 text-sm pt-12">
-                        <BookOpen className="mx-auto mb-2 opacity-30" size={32} />
-                        مفيش محاضرات مطابقة
-                    </div>
-                )}
-                {filtered.map(l => (
-                    <button
-                        key={l.id}
-                        onClick={() => handlePickLecture(l.id, l.title)}
-                        className="w-full flex items-center justify-between gap-3 bg-slate-800/60 hover:bg-slate-700/70 border border-white/5 hover:border-rose-500/40 rounded-xl px-4 py-3 text-right transition-all group"
-                    >
-                        <div className="flex items-center gap-3 min-w-0">
-                            <div className="shrink-0 w-8 h-8 rounded-lg bg-rose-900/40 flex items-center justify-center">
-                                <Mic size={15} className="text-rose-400" />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-sm font-medium text-white truncate">{l.title}</p>
-                                <p className="text-xs text-slate-400 truncate">{l.subjectName}</p>
-                            </div>
-                        </div>
-                        <ChevronRight size={16} className="shrink-0 text-slate-500 group-hover:text-rose-400 transition-colors rotate-180" />
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-};
-
-// ─── MAIN OVERLAY ─────────────────────────────────────────────────────────────
 export const ToolsOverlay: React.FC<ToolsOverlayProps> = ({ tool, onClose }) => {
 
+    // Close on click outside
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (e.target === e.currentTarget) onClose();
     };
@@ -125,15 +22,14 @@ export const ToolsOverlay: React.FC<ToolsOverlayProps> = ({ tool, onClose }) => 
         }
     };
 
-    const isPlayer = tool.componentKey === 'PLAYER';
-    const isRecorder = tool.componentKey === 'RECORDER';
-
     return (
         <div
             className="fixed inset-0 z-[500] flex items-center justify-center p-0 md:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
             onClick={handleBackdropClick}
         >
-            <div className={`bg-slate-900 md:rounded-2xl w-full ${isPlayer ? 'max-w-6xl' : 'max-w-2xl'} h-full md:h-auto md:max-h-[85vh] flex flex-col shadow-2xl border-none md:border md:border-white/10 animate-in zoom-in-95 slide-in-from-bottom-5 duration-300 overflow-hidden`}>
+            {/* Global Session Timer (z-9999) sits above this layer automatically */}
+
+            <div className={`bg-slate-900 md:rounded-2xl w-full ${tool.componentKey === 'PLAYER' ? 'max-w-6xl' : 'max-w-2xl'} h-full md:h-auto md:max-h-[85vh] flex flex-col shadow-2xl border-none md:border md:border-white/10 animate-in zoom-in-95 slide-in-from-bottom-5 duration-300 overflow-hidden`}>
 
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 px-6 border-b border-white/5 bg-slate-900/50 backdrop-blur-sm z-10 shrink-0">
@@ -156,15 +52,14 @@ export const ToolsOverlay: React.FC<ToolsOverlayProps> = ({ tool, onClose }) => 
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto bg-slate-950/30 relative">
-                    {isPlayer ? (
+                    {tool.componentKey === 'PLAYER' ? (
                         <div className="h-[600px] w-full p-4 md:p-6">
                             <LocalMediaPlayer isOpen={true} onClose={() => { }} />
                         </div>
-                    ) : isRecorder ? (
-                        <RecorderLecturePicker onClose={onClose} />
                     ) : (
                         /* LAUNCHER SHELL */
                         <div className="h-full flex flex-col items-center justify-center p-8 text-center min-h-[400px]">
+
                             <div className="flex flex-col items-center mb-8">
                                 <div className="p-8 rounded-full bg-slate-800/30 ring-1 ring-white/5 shadow-2xl mb-6 relative">
                                     {tool.customIcon ? (
