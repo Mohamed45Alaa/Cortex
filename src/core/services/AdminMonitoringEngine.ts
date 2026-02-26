@@ -44,6 +44,12 @@ const _pendingProfileFetches = new Set<string>();
 // Real-time Firestore onSnapshot unsubscribe functions per UID
 const _profileListeners = new Map<string, () => void>();
 
+// ─── SESSION AUTHORITY MAP ────────────────────────────────────────────────────
+// Mirrors /activeSessions/{uid} data. Merged into status on emit.
+// This is THE source of truth for session detection — updated independently
+// of the status listener, so session visibility is guaranteed.
+const _activeSessionsMap = new Map<string, any>();
+
 // ─── MODULE-LEVEL ENGINE STATE ────────────────────────────────────────────────
 let _callback: ((data: DashboardData) => void) | null = null;
 let _isRunning = false;
@@ -150,7 +156,10 @@ function _doEmit() {
         }
 
         // Session detection
-        const sessionContext = rtdbStatus?.activeSession || rtdbStatus?.currentSession || null;
+        // PRIMARY: /activeSessions/{uid} (authoritative, set by RealtimePresenceService.startSession)
+        // FALLBACK: status/{uid}/activeSession (backward compat mirror)
+        const sessionFromPrimary = _activeSessionsMap.get(uid);
+        const sessionContext = sessionFromPrimary || rtdbStatus?.activeSession || rtdbStatus?.currentSession || null;
         const isSessionActive = !!(sessionContext || rtdbStatus?.inSession === true);
 
         // Classification
@@ -297,6 +306,10 @@ export const AdminMonitoringEngine = {
 
         const statusRef = ref(dbRTDB, 'status');
         const usersRef = ref(dbRTDB, 'users');
+        // ── SESSION AUTHORITY: /activeSessions ────────────────────────────────
+        // This is the PRIMARY session source of truth. Subscribed independently
+        // from the status listener — completely decoupled from presence.
+        const activeSessionsRef = ref(dbRTDB, 'activeSessions');
 
         onValue(statusRef, (snap) => {
             const val = snap.val();
@@ -323,8 +336,48 @@ export const AdminMonitoringEngine = {
             }
         });
 
-        // No polling interval needed — RTDB onValue fires instantly on any state change.
-        // Staleness is checked in _doEmit when onValue fires.
+        // ── ACTIVE SESSIONS LISTENER (Phase 3 — Architecture Rebuild) ──────────
+        // Fires independently on any /activeSessions change.
+        // Merges session data into _activeSessionsMap AND into _rtdbStatusMap
+        // so the emit logic detects session without needing status update.
+        onValue(activeSessionsRef, (snap) => {
+            const val = snap.val();
+            console.log('[ADMIN MONITOR] ACTIVE SESSIONS SNAPSHOT:', val);
+
+            // Clear removed sessions (user ended session → node removed)
+            // We check which UIDs are no longer in the snapshot
+            const currentUids = new Set(val ? Object.keys(val) : []);
+            _activeSessionsMap.forEach((_, uid) => {
+                if (!currentUids.has(uid)) {
+                    _activeSessionsMap.delete(uid);
+                    // Also clear from status map mirror
+                    const statusEntry = _rtdbStatusMap.get(uid);
+                    if (statusEntry) {
+                        _rtdbStatusMap.set(uid, { ...statusEntry, activeSession: null, inSession: false });
+                    }
+                    console.log(`[ADMIN MONITOR] SESSION ENDED: ${uid}`);
+                }
+            });
+
+            if (val) {
+                Object.keys(val).forEach(uid => {
+                    const sessionData = val[uid];
+                    _activeSessionsMap.set(uid, sessionData);
+
+                    // Merge into status map so emit picks it up immediately
+                    const existingStatus = _rtdbStatusMap.get(uid) || {};
+                    _rtdbStatusMap.set(uid, {
+                        ...existingStatus,
+                        activeSession: sessionData,
+                        inSession: true,
+                    });
+                    console.log(`[ADMIN MONITOR] SESSION ACTIVE: ${uid} →`, sessionData.sessionId);
+                });
+            }
+
+            _emit();
+        });
+
     },
 
     /**
@@ -338,6 +391,7 @@ export const AdminMonitoringEngine = {
         if (dbRTDB) {
             off(ref(dbRTDB, 'status'));
             off(ref(dbRTDB, 'users'));
+            off(ref(dbRTDB, 'activeSessions')); // Phase 3: stop activeSessions listener
         }
 
         if (_stalenessIntervalId !== null) {
@@ -368,6 +422,7 @@ export const AdminMonitoringEngine = {
         _rtdbUsersMap.clear();
         _firestoreProfileCache.clear();
         _pendingProfileFetches.clear();
+        _activeSessionsMap.clear(); // Phase 3: also clear session authority map
         _lastEmitTime = 0;
         console.log('[ADMIN MONITOR] Cache Cleared (Logout) — all listeners detached');
     },

@@ -104,9 +104,11 @@ export const SessionTimerView: React.FC<SessionTimerViewProps> = ({
         const m = Math.floor((totalSeconds % 3600) / 60);
         const s = totalSeconds % 60;
 
-        const timeString = `${h.toString().padStart(2, '0')} : ${m.toString().padStart(2, '0')} : ${s.toString().padStart(2, '0')}`;
+        // Compact format: no spaces around colons to minimize rendered width on mobile
+        const timeString = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         return timeString;
     };
+
 
 
 

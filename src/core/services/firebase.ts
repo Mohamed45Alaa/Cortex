@@ -49,10 +49,22 @@ if (typeof window !== "undefined") {
         if (app && firebaseConfig.databaseURL) {
             // Explicitly pass URL to prevent default mismatch errors
             rtdb = getDatabase(app, firebaseConfig.databaseURL);
-            console.log("[System] RTDB Singleton Initialized");
+
+            // ─── ENVIRONMENT ASSERTION (Phase 4 of Session Rebuild) ─────────────
+            // These lines print on EVERY page load in browser console.
+            // In production they appear in Vercel Edge logs.
+            // If Project ID or Database URL differs between admin and student,
+            // that is the root cause of session invisibility.
+            console.log('[System] ✅ RTDB Initialized');
+            console.log('[System] PROJECT_ID:', app.options.projectId);
+            console.log('[System] DATABASE_URL:', firebaseConfig.databaseURL);
+            console.log('[System] AUTH_DOMAIN:', firebaseConfig.authDomain);
         } else {
             console.error("[System] RTDB Failed: Missing URL or App");
+            console.error("[System] databaseURL:", firebaseConfig.databaseURL);
+            console.error("[System] app:", !!app);
         }
+
 
     } catch (e) {
         console.error("[System] FATAL FIREBASE INIT ERROR:", e);

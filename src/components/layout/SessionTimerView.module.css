@@ -14,15 +14,26 @@
 }
 
 .timerDisplay {
-    font-size: 5rem;
+    /*
+     * clamp(minimum, preferred, maximum)
+     * 18vw = 18% of viewport width
+     * On a 390px phone → 18vw = 70px ≈ 4.4rem → fits HH:MM:SS in one line
+     * On a 320px phone → 18vw = 57px ≈ 3.6rem → still fits
+     * On desktop       → capped at 5.5rem
+     */
+    font-size: clamp(2rem, 18vw, 5.5rem);
     font-weight: 700;
-    font-family: 'monospace';
+    font-family: 'Courier New', 'monospace';
     color: var(--foreground);
-    margin-bottom: 4rem;
+    margin-bottom: 3rem;
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.02em;
     text-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-    transition: font-size 0.3s ease;
+
+    /* CRITICAL: Never wrap to a second line */
+    white-space: nowrap;
+    width: 100%;
+    text-align: center;
 
     /* [NEW] Layout for Badge */
     display: flex;
@@ -30,7 +41,6 @@
     align-items: center;
     line-height: 1;
     padding-bottom: 1rem;
-    /* Space for border */
 }
 
 .controls {
@@ -107,20 +117,14 @@
         padding: 1rem;
     }
 
-    .timerDisplay {
-        font-size: 3.5rem;
-        /* Smaller timer */
-        margin-bottom: 2rem;
-    }
+    /* timerDisplay font-size handled by clamp() — no override needed */
 
     .controls {
         gap: 16px;
-        /* Tighter controls */
     }
 
     .controlBtn {
         width: 60px;
-        /* Smaller buttons */
         height: 60px;
     }
 

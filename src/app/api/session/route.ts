@@ -2,12 +2,21 @@
 import { createFirebaseAdminApp } from "@/core/services/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
-// PHASE 1: VERIFY SERVER LOADS FILE
+// SERVER ENVIRONMENT DIAGNOSTICS (visible in Vercel function logs)
 console.log("🟢 API SESSION FILE LOADED");
+console.log("[Session API] ENV CHECK:", {
+    hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+    hasDatabaseURL: !!(process.env.FIREBASE_DATABASE_URL || process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL),
+    hasProjectId: !!(process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
+    hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+    hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
+    databaseURL: process.env.FIREBASE_DATABASE_URL || process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || 'MISSING',
+});
 
-// PHASE 6: NEXT.JS CRASH PREVNETION
+// PHASE 6: NEXT.JS CRASH PREVENTION
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
 
 // CONFIGURATION
 // const HEARTBEAT_TTL_MS = 60 * 1000; // Not used locally yet, logic is in logic block
@@ -249,61 +258,94 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // B) START
+        // B) START — Writes to /activeSessions/{uid} (PRIMARY) + status mirror
         if (action === 'START') {
             const { lectureId, subjectId } = payload;
-            const activeSession = {
-                sessionId: `${uid}_${lectureId}_${Date.now()}`,
+            const now = Date.now();
+            const sessionData = {
+                sessionId: `${uid}_${lectureId}_${now}`,
                 lectureId,
                 subjectId,
-                startedAt: Date.now(),
-                expiresAt: Date.now() + (24 * 60 * 60 * 1000),
-                // Add extended fields if needed by store restore
-                isActive: true
+                startedAt: now,
+                expiresAt: now + (24 * 60 * 60 * 1000),
+                isActive: true,
+                status: 'running',
+                environment: 'server',
             };
 
-            const statusRef = rtdb.ref(`status/${uid}`);
-            await statusRef.update({
+            const dbUrl = process.env.FIREBASE_DATABASE_URL || process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || 'MISSING';
+            console.log(`[Session API] ▶ START — uid:${uid} sessionId:${sessionData.sessionId}`);
+            console.log(`[Session API] WRITE PATH: activeSessions/${uid} | DATABASE:`, dbUrl);
+
+            // PRIMARY: /activeSessions/{uid} — THE source of truth
+            await rtdb.ref(`activeSessions/${uid}`).set(sessionData);
+            console.log(`[Session API] ✅ SESSION START WRITTEN: activeSessions/${uid}`);
+
+            // MIRROR: status/{uid}/activeSession — backward compat
+            await rtdb.ref(`status/${uid}`).update({
                 state: 'online',
-                activeSession,
-                heartbeat: Date.now(),
-                lastSeenAt: Date.now(),
+                activeSession: sessionData,
+                inSession: true,
+                heartbeat: now,
+                lastSeenAt: now,
                 sessionTermination: null
             });
 
-            // Audit
-            try {
-                await db.collection('activeSessions').doc(activeSession.sessionId).set({
-                    uid,
-                    ...activeSession,
-                    status: 'RUNNING',
-                    createdAt: FieldValue.serverTimestamp()
-                });
-            } catch (e) { console.warn("Firestore Audit Failed"); }
+            // DEBUG MIRROR
+            await rtdb.ref(`debug/sessionWrites/${uid}`).set({
+                lastEvent: 'START',
+                sessionId: sessionData.sessionId,
+                writtenAt: now,
+                writtenBy: 'server',
+            }).catch(() => { });
 
-            return NextResponse.json({ success: true, session: activeSession });
+            // Firestore audit (non-critical)
+            db.collection('activeSessions').doc(sessionData.sessionId).set({
+                uid,
+                ...sessionData,
+                status: 'RUNNING',
+                createdAt: FieldValue.serverTimestamp()
+            }).catch(e => console.warn('Firestore Audit Failed:', e));
+
+            return NextResponse.json({ success: true, session: sessionData });
         }
 
-        // C) END
+
+        // C) END — Remove from /activeSessions/{uid} (PRIMARY) + status mirror
         if (action === 'END') {
-            const statusRef = rtdb.ref(`status/${uid}`);
-            const snap = await statusRef.get();
-            const activeSession = snap.val()?.activeSession;
+            const now = Date.now();
+            console.log(`[Session API] ⏹ END — uid:${uid}`);
 
-            if (activeSession) {
-                try {
-                    await db.collection('activeSessions').doc(activeSession.sessionId).set({
-                        status: 'COMPLETED',
-                        endedBy: 'USER',
-                        endedAt: FieldValue.serverTimestamp()
-                    }, { merge: true });
-                } catch (e) { console.warn("Firestore Audit Failed"); }
-            }
+            // PRIMARY: remove /activeSessions/{uid}
+            await rtdb.ref(`activeSessions/${uid}`).remove();
+            console.log(`[Session API] ✅ SESSION REMOVED: activeSessions/${uid}`);
 
-            await statusRef.update({
+            // Get current session for Firestore audit
+            const statusSnap = await rtdb.ref(`status/${uid}`).get();
+            const activeSession = statusSnap.val()?.activeSession;
+
+            // MIRROR: clear status
+            await rtdb.ref(`status/${uid}`).update({
                 activeSession: null,
-                lastSeenAt: Date.now()
+                inSession: false,
+                lastSeenAt: now
             });
+
+            // DEBUG MIRROR
+            rtdb.ref(`debug/sessionWrites/${uid}`).set({
+                lastEvent: 'END',
+                endedAt: now,
+                writtenBy: 'server',
+            }).catch(() => { });
+
+            // Firestore audit
+            if (activeSession?.sessionId) {
+                db.collection('activeSessions').doc(activeSession.sessionId).set({
+                    status: 'COMPLETED',
+                    endedBy: 'USER',
+                    endedAt: FieldValue.serverTimestamp()
+                }, { merge: true }).catch(e => console.warn('Firestore Audit Failed:', e));
+            }
 
             return NextResponse.json({ success: true });
         }

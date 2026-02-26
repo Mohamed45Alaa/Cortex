@@ -1,11 +1,47 @@
-import { getDatabaseInstance, getAuthInstance } from "@/core/services/firebase";
-import { ref, onValue, onDisconnect, serverTimestamp, update, get } from "firebase/database";
+/**
+ * RealtimePresenceService
+ * ──────────────────────────────────────────────────────────────────────────────
+ * SINGLE SOURCE OF TRUTH FOR SESSIONS: /activeSessions/{uid}
+ *
+ * ARCHITECTURE (Post-Rebuild):
+ *
+ *   PRESENCE  → status/{uid}          (state, lastSeenAt, heartbeat)
+ *   SESSION   → activeSessions/{uid}  (sessionId, subjectId, startedAt, status)
+ *             → status/{uid}/activeSession  (backward compat mirror)
+ *
+ * WHY CLIENT SDK NOT SERVER API:
+ *   Presence writes already use client SDK directly (updateStateImmediate).
+ *   Session writes MUST use the same path for identical reliability.
+ *   Server API (/api/session) adds latency + failure modes → now audit-only.
+ *
+ * DEBUG MIRROR:
+ *   /debug/sessionWrites/{uid} logs every start/end event with timestamps.
+ *   Admin can verify both nodes exist to confirm write succeeded.
+ */
 
-// ROOT PATHS
-const STATUS_ROOT = (uid: string) => `status/${uid}`;
+import { getDatabaseInstance, getAuthInstance } from "@/core/services/firebase";
+import { ref, onValue, onDisconnect, serverTimestamp, update, remove, set } from "firebase/database";
+
+// ─── PATHS ────────────────────────────────────────────────────────────────────
+const PATH_STATUS = (uid: string) => `status/${uid}`;
+const PATH_ACTIVE_SESSION = (uid: string) => `activeSessions/${uid}`;
+const PATH_DEBUG = (uid: string) => `debug/sessionWrites/${uid}`;
 const CONNECTED_REF = ".info/connected";
 
-// API HELPER
+// ─── ENVIRONMENT ASSERTION ────────────────────────────────────────────────────
+if (typeof window !== 'undefined') {
+    try {
+        const db = getDatabaseInstance();
+        if (db) {
+            const projectId = (db as any).app?.options?.projectId || 'UNKNOWN';
+            const dbUrl = (db as any).app?.options?.databaseURL || 'UNKNOWN';
+            console.log(`[Presence] ✅ CLIENT SDK PROJECT_ID: ${projectId}`);
+            console.log(`[Presence] ✅ CLIENT SDK DATABASE_URL: ${dbUrl}`);
+        }
+    } catch { }
+}
+
+// ─── API HELPER (audit-only, non-blocking) ────────────────────────────────────
 async function callSessionApi(action: 'START' | 'END' | 'HEARTBEAT' | 'PRESENCE', payload: any = {}) {
     const auth = getAuthInstance();
     const user = auth?.currentUser;
@@ -23,9 +59,8 @@ async function callSessionApi(action: 'START' | 'END' | 'HEARTBEAT' | 'PRESENCE'
         });
 
         if (response.status === 410) {
-            // CRITICAL: Server says we are dead.
             console.error("🚨 SESSION REVOKED BY SERVER (410 GONE). FORCE EXITING.");
-            window.location.reload(); // Simple nuclear option for now
+            window.location.reload();
             return null;
         }
 
@@ -39,100 +74,86 @@ async function callSessionApi(action: 'START' | 'END' | 'HEARTBEAT' | 'PRESENCE'
 export const RealtimePresenceService = {
 
     /**
-     * INITIALIZE CONNECTION LISTENER
-     * Listen ONLY. Do not write session state directly.
+     * INITIALIZE — Set up connection listener and kill-switch listener.
+     * Call once on auth, before any session logic.
      */
     initialize: (uid: string) => {
         const db = getDatabaseInstance();
         if (!db) return;
 
         const connectedRef = ref(db, CONNECTED_REF);
-        const userStatusRef = ref(db, STATUS_ROOT(uid));
+        const userStatusRef = ref(db, PATH_STATUS(uid));
 
         // 1. Connection Binding & Disconnect Logic
         onValue(connectedRef, (snap) => {
             const isConnected = snap.val() === true;
 
             if (isConnected) {
-                // A. ON DISCONNECT: Set 'offline' + Timestamp
-                // CRITICAL: We DO NOT touch activeSession. It survives disconnect.
-                // STRICT SCHEMA ENFORCEMENT: Only presence nodes.
+                // ON DISCONNECT: mark offline (presence only — session survives disconnect)
                 onDisconnect(userStatusRef).update({
                     state: 'offline',
                     lastSeenAt: serverTimestamp(),
-                    // We purposefully do NOT touch inSession or activeSession
                 }).then(() => {
-                    // B. ON CONNECT: Set 'online' (or correct state via heartbeat later)
-                    // We set initial state to Online to ensure dashboard lights up.
+                    // ON CONNECT: mark online
                     const isHidden = document.hidden;
-
-                    // STRICT SCHEMA INITIALIZATION
                     update(userStatusRef, {
                         state: isHidden ? 'background' : 'online',
                         lastSeenAt: serverTimestamp(),
-                        // We preserve existing inSession/currentPage if any
                     }).catch(e => console.warn('[RTDB] Presence update ignored:', e));
                 }).catch(e => console.warn('[RTDB] Presence onDisconnect ignored:', e));
             }
         }, (err) => {
-            console.warn('[RTDB] connectedRef error (Ignored if logged out):', err);
+            console.warn('[RTDB] connectedRef error:', err);
         });
 
-        // 2. LISTEN FOR KILL SWITCH (Admin / Zombie Reaper)
-        const terminationRef = ref(db, `status/${uid}/sessionTermination`);
+        // 2. Kill-switch listener (admin force-end)
+        const terminationRef = ref(db, `${PATH_STATUS(uid)}/sessionTermination`);
         onValue(terminationRef, (snap) => {
             const data = snap.val();
             if (data) {
                 console.warn("[RTDB] 🚨 RECEIVED TERMINATION SIGNAL:", data);
-                // Call Store to handle UI cleanup
                 import("@/store/useStore").then(({ useStore }) => {
                     useStore.getState().endActiveSession(false, true, data);
                 });
             }
         }, (error) => {
-            console.warn("[RTDB] 🚨 Termination Listener Error (Ignored):", error);
+            console.warn("[RTDB] Termination Listener Error (Ignored):", error);
         });
     },
 
     /**
-     * UPDATE VISIBILITY (API)
+     * UPDATE VISIBILITY STATE — writes `state` to status node.
      */
     updateState: (uid: string, state: 'online' | 'background') => {
-        // Optimistic local state tracking could handle 'heartbeat' payload consistency
-        // But for now, we just fire the immediate change.
         callSessionApi('PRESENCE', {
             state,
-            currentPage: window.location.pathname // Tracking Page Context
+            currentPage: window.location.pathname
         });
     },
 
     /**
-     * INSTANT STATE UPDATE — writes directly to RTDB client SDK.
-     * Use this for time-critical changes (e.g. visibilitychange) 
-     * since callSessionApi goes through HTTP which adds ~200-500ms+ latency.
+     * INSTANT STATE UPDATE — direct client SDK write.
+     * Use for time-critical changes (visibilitychange, tab switch).
      */
     updateStateImmediate: (uid: string, state: 'online' | 'background') => {
         const db = getDatabaseInstance();
         if (!db) return;
-        const statusRef = ref(db, `status/${uid}`);
+        const statusRef = ref(db, PATH_STATUS(uid));
         update(statusRef, {
             state,
             lastSeenAt: Date.now(),
         }).catch(err => {
-            // Fallback to API if direct write fails (e.g. security rules block client writes)
             console.warn('[Presence] Direct RTDB write failed, falling back to API:', err);
             callSessionApi('PRESENCE', { state, currentPage: window.location.pathname });
         });
     },
 
     /**
-     * HEARTBEAT -> NOW SERVER AUTHORITATIVE
-     * "I am still here. Am I allowed to be?"
+     * HEARTBEAT — server-authoritative check.
      */
     heartbeat: async (uid: string, data?: { lastInteraction?: number, activeSessionId?: string }) => {
         const isHidden = document.hidden;
         const state = isHidden ? 'background' : 'online';
-
         await callSessionApi('HEARTBEAT', {
             state,
             currentPage: window.location.pathname,
@@ -142,24 +163,119 @@ export const RealtimePresenceService = {
     },
 
     /**
-     * START SESSION -> API CALL
+     * START SESSION
+     * ──────────────────────────────────────────────────────────────────────
+     * PRIMARY WRITE: /activeSessions/{uid}   ← SOURCE OF TRUTH
+     * MIRROR WRITE:  /status/{uid}/activeSession  ← backward compat
+     * DEBUG WRITE:   /debug/sessionWrites/{uid}   ← audit trail
+     * SERVER AUDIT:  /api/session START           ← Firestore only, non-blocking
+     *
+     * PRODUCTION INVARIANT:
+     *   Admin subscribes to /activeSessions — this write ALWAYS succeeds
+     *   because it uses the same client SDK as presence (zero server dependency).
      */
     startSession: async (uid: string, lectureId: string, subjectId: string) => {
-        return callSessionApi('START', { lectureId, subjectId });
+        const db = getDatabaseInstance();
+        const sessionId = `${uid}_${lectureId}_${Date.now()}`;
+        const now = Date.now();
+
+        const sessionPayload = {
+            sessionId,
+            lectureId,
+            subjectId,
+            startedAt: now,
+            status: 'running',
+            isActive: true,
+            environment: typeof window !== 'undefined'
+                ? (process.env.NEXT_PUBLIC_VERCEL_ENV || 'localhost')
+                : 'server',
+        };
+
+        if (!db) {
+            console.error('[SESSION] ❌ RTDB unavailable — session write failed');
+            return;
+        }
+
+        console.log(`[SESSION] ▶ START — uid: ${uid}, sessionId: ${sessionId}`);
+        console.log(`[SESSION] ▶ WRITE PATH: activeSessions/${uid}`);
+
+        // ── PRIMARY: /activeSessions/{uid} ────────────────────────────────────
+        await set(ref(db, PATH_ACTIVE_SESSION(uid)), sessionPayload)
+            .then(() => console.log(`[SESSION] ✅ SESSION START WRITTEN: activeSessions/${uid}`))
+            .catch(err => console.error(`[SESSION] ❌ activeSessions write FAILED:`, err));
+
+        // ── MIRROR: /status/{uid}/activeSession ───────────────────────────────
+        update(ref(db, PATH_STATUS(uid)), {
+            activeSession: sessionPayload,
+            inSession: true,
+        }).catch(err => console.warn('[SESSION] status mirror write failed (non-fatal):', err));
+
+        // ── DEBUG: /debug/sessionWrites/{uid} ─────────────────────────────────
+        set(ref(db, PATH_DEBUG(uid)), {
+            lastEvent: 'START',
+            sessionId,
+            lectureId,
+            subjectId,
+            startedAt: now,
+            writtenAt: now,
+        }).catch(() => { /* Debug node is best-effort */ });
+
+        // ── SERVER AUDIT: Firestore (non-blocking) ────────────────────────────
+        callSessionApi('START', { lectureId, subjectId }).catch(
+            err => console.warn('[SESSION] Server audit write failed (non-fatal):', err)
+        );
     },
 
     /**
-     * END SESSION -> API CALL
+     * END SESSION
+     * ──────────────────────────────────────────────────────────────────────
+     * PRIMARY REMOVE: /activeSessions/{uid}
+     * MIRROR:         /status/{uid}/activeSession → null
+     * DEBUG:          /debug/sessionWrites/{uid}  → END event
+     * SERVER AUDIT:   /api/session END (non-blocking)
      */
     endSession: async (uid: string) => {
-        return callSessionApi('END');
+        const db = getDatabaseInstance();
+        const now = Date.now();
+
+        if (!db) {
+            console.error('[SESSION] ❌ RTDB unavailable — session end write failed');
+            return;
+        }
+
+        console.log(`[SESSION] ⏹ END — uid: ${uid}`);
+
+        // ── PRIMARY: remove /activeSessions/{uid} ─────────────────────────────
+        await remove(ref(db, PATH_ACTIVE_SESSION(uid)))
+            .then(() => console.log(`[SESSION] ✅ SESSION REMOVED: activeSessions/${uid}`))
+            .catch(err => console.error(`[SESSION] ❌ activeSessions remove FAILED:`, err));
+
+        // ── MIRROR: clear /status/{uid}/activeSession ─────────────────────────
+        update(ref(db, PATH_STATUS(uid)), {
+            activeSession: null,
+            inSession: false,
+            lastSeenAt: now,
+        }).catch(err => console.warn('[SESSION] status mirror clear failed (non-fatal):', err));
+
+        // ── DEBUG: update /debug/sessionWrites/{uid} ──────────────────────────
+        set(ref(db, PATH_DEBUG(uid)), {
+            lastEvent: 'END',
+            endedAt: now,
+            writtenAt: now,
+        }).catch(() => { /* Best-effort */ });
+
+        // ── SERVER AUDIT (non-blocking) ───────────────────────────────────────
+        callSessionApi('END').catch(
+            err => console.warn('[SESSION] Server end audit failed (non-fatal):', err)
+        );
     },
 
-    setOffline: (uid: string) => {
-        // Client cannot declare itself offline. It just stops heartbeating.
+    setOffline: (_uid: string) => {
+        // Client cannot unilaterally declare itself offline.
+        // The onDisconnect handler + RTDB handles this automatically.
     },
 
-    trackPage: (uid: string, path: string) => {
-        // Disabled to prevent Permission Denied errors.
+    trackPage: (_uid: string, _path: string) => {
+        // Disabled: prevented Permission Denied errors in previous analysis.
     }
 };

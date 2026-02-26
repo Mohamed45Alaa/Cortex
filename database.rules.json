@@ -7,6 +7,21 @@
                 ".write": "$uid === auth.uid"
             }
         },
+        "activeSessions": {
+            ".read": "auth.token.role === 'admin'",
+            "$uid": {
+                ".read": "$uid === auth.uid || auth.token.role === 'admin'",
+                ".write": "$uid === auth.uid"
+            }
+        },
+        "debug": {
+            "sessionWrites": {
+                "$uid": {
+                    ".read": "$uid === auth.uid || auth.token.role === 'admin'",
+                    ".write": "$uid === auth.uid"
+                }
+            }
+        },
         ".read": "auth != null",
         ".write": "auth != null && auth.token.role === 'admin'"
     }
